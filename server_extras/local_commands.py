@@ -2,15 +2,12 @@ from server_extras.local_command import (
     InternalLocalCommand,
     LocalCommandResult,
     add_local_command,
-    local_commands,
     LocalCommand,
 )
 from shared.extras.double_command import (
     InternalDoubleCommand,
-    double_commands,
     ArgumentType,
 )
-from server_extras.client import RenameClientResult
 from shared.extras.command import CommandResult
 
 from typing import TYPE_CHECKING
@@ -108,6 +105,8 @@ class RemoveClient(LocalCommand):
 class RenameClient(LocalCommand):
     @staticmethod
     def local_side(server_thread: "ServerThread", params: tuple) -> CommandResult:
+        from server_extras.client import RenameClientResult
+
         if params[0].casefold() == params[1].casefold():
             print(f"The first parameter must not be the same as the second one.")
             return CommandResult(LocalCommandResult.param_error)
@@ -199,8 +198,8 @@ class DeselectClient(LocalCommand):
 class Help(LocalCommand):
     @staticmethod
     def local_side(server_thread: "ServerThread", params: tuple) -> CommandResult:
-        import shared.extras.double_command as double_command
-        import server_extras.local_command as local_command
+        from shared.extras.double_command import double_commands
+        from server_extras.local_command import local_commands
 
         longest_command_name_length = max(
             max([len(cmd_name) for cmd_name in double_commands.keys()]),
