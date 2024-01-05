@@ -1,4 +1,9 @@
-from shared.extras.command import MAX_COMMAND_NAME_LENGTH, CommandResult
+from shared.extras.command import (
+    MAX_COMMAND_NAME_LENGTH,
+    CommandResult,
+    get_max_args,
+    get_min_args,
+)
 
 from typing import Iterable, Callable
 import socket
@@ -103,8 +108,6 @@ class InternalDoubleCommand:
         name: str,
         usage: str,
         description: str,
-        min_args: int,
-        max_args: int,
         argument_types: Iterable[ArgumentType],
         return_type: type,
         required_client_modules: Iterable[str] | None = None,
@@ -116,8 +119,6 @@ class InternalDoubleCommand:
         self.__name = name
         self.__usage = usage
         self.__description = description
-        self.__min_args = min_args
-        self.__max_args = max_args
         self.__argument_types = argument_types
         self.__return_type = return_type
         self.__required_client_modules = required_client_modules or []
@@ -135,11 +136,11 @@ class InternalDoubleCommand:
 
     @property
     def min_args(self) -> int:
-        return self.__min_args
+        return get_min_args(self.argument_types)
 
     @property
     def max_args(self) -> int:
-        return self.__max_args
+        return get_max_args(self.argument_types)
 
     @property
     def usage(self) -> str:
@@ -181,8 +182,6 @@ def add_double_command(
     name: str,
     usage: str,
     description: str,
-    min_args: int,
-    max_args: int,
     argument_types: Iterable[ArgumentType],
     return_type: type,
     required_client_modules: Iterable[str] | None = None,
@@ -199,8 +198,6 @@ def add_double_command(
             )
         if len(name) == 0:
             raise ValueError("name must have at least 1 character")
-        if min_args > max_args:
-            raise ValueError("min_args, must be smaller or equal to max_args")
         prev_arg_optional = False
         for arg_type in argument_types:
             if not arg_type.is_optional and prev_arg_optional:
@@ -213,8 +210,6 @@ def add_double_command(
             name,
             usage,
             description,
-            min_args,
-            max_args,
             argument_types,
             return_type,
             required_client_modules,

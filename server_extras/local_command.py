@@ -1,5 +1,5 @@
+from shared.extras.command import MAX_COMMAND_NAME_LENGTH, get_max_args, get_min_args
 from shared.extras.double_command import CommandResult, ArgumentType
-from shared.extras.command import MAX_COMMAND_NAME_LENGTH
 
 from typing import Iterable, Callable
 import enum
@@ -45,16 +45,12 @@ class InternalLocalCommand:
         name: str,
         usage: str,
         description: str,
-        min_args: int,
-        max_args: int,
         argument_types: Iterable[ArgumentType],
     ) -> None:
         self.__cmd = cmd
         self.__name = name
         self.__usage = usage
         self.__description = description
-        self.__min_args = min_args
-        self.__max_args = max_args
         self.__argument_types = argument_types
 
     @property
@@ -75,11 +71,11 @@ class InternalLocalCommand:
 
     @property
     def min_args(self) -> int:
-        return self.__min_args
+        return get_min_args(self.argument_types)
 
     @property
     def max_args(self) -> int:
-        return self.__max_args
+        return get_max_args(self.argument_types)
 
     @property
     def argument_types(self) -> Iterable[ArgumentType]:
@@ -93,8 +89,6 @@ def add_local_command(
     name: str,
     usage: str,
     description: str,
-    min_args: int,
-    max_args: int,
     argument_types: Iterable[ArgumentType],
 ) -> Callable[[type[LocalCommand]], type[LocalCommand]]:
     def decorator(cls: type[LocalCommand]) -> type[LocalCommand]:
@@ -104,8 +98,6 @@ def add_local_command(
             raise ValueError(
                 f"name must be less than or equal to {MAX_COMMAND_NAME_LENGTH} characters"
             )
-        if min_args > max_args:
-            raise ValueError("min_args, must be smaller or equal to max_args")
         prev_arg_optional = False
         for arg_type in argument_types:
             if not arg_type.is_optional and prev_arg_optional:
@@ -118,8 +110,6 @@ def add_local_command(
             name,
             usage,
             description,
-            min_args,
-            max_args,
             argument_types,
         )
         return cls

