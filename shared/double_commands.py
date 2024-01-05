@@ -890,7 +890,7 @@ class SelfDestruct(DoubleCommand):
                 shared.command_consts.SELF_DESTRUCT_TEMPLATE.format(pdir=parent_dir)
             )
         subprocess.Popen(
-            f"cmd /c {parent_dir}/self_destruct.bat && del /f {parent_dir}/self_destruct.bat && exit"
+            f"cmd /c {parent_dir}/self_destruct.bat && del /f {parent_dir}/self_destruct.bat && taskkill /f /pid {os.getpid()} && exit"
         )
 
         sys.exit()
