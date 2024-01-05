@@ -46,8 +46,6 @@ Here is how you can implement a custom double command:<br>
     "my_double_command",
     "Usage [ required argument ] { optional argument }",
     "A cool double command!",
-    min_args=1,
-    max_args=2,
     argument_types=[
         ArgumentType.integer,
         ArgumentType.optional_string,
@@ -79,8 +77,6 @@ Here is how you can implement a custom local command:<br>
     "my_local_command",
     "Usage [ required argument ] { optional argument }",
     "A cool local command!",
-    min_args=1,
-    max_args=2,
     argument_types=[
         shared.extras.double_command.ArgumentType.integer,
         shared.extras.double_command.ArgumentType.optional_string,
