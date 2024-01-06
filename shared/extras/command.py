@@ -4,9 +4,9 @@ import enum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from shared.extras.double_command import DoubleCommandResult
     from server_extras.local_command import LocalCommandResult
     from shared.extras.double_command import ArgumentType
-    from extras.double_command import DoubleCommandResult
 
 
 class ExecuteCommandResult(enum.Enum):
