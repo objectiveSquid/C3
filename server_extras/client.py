@@ -9,6 +9,7 @@ from server_extras.custom_io import CustomStdout
 
 import concurrent.futures as futures
 from typing import Callable, Any
+import warnings
 import inspect
 import random
 import socket
@@ -78,6 +79,10 @@ class Client:
         return CommandResult(ExecuteCommandResult.max_retries_hit)
 
     def create_temp_socket(self, blocking: bool, timeout: float) -> socket.socket:
+        warnings.warn(
+            "this function is deprecated, use the .socket property instead",
+            DeprecationWarning,
+        )
         tmp_sock = self.__sock.dup()
         tmp_sock.setblocking(blocking)
         tmp_sock.settimeout(timeout)
@@ -129,8 +134,19 @@ class Client:
         return not self.__alive
 
     @property
-    def socket(self) -> socket.socket:
-        return self.__sock
+    def socket(
+        self, blocking: bool | None = None, timeout: float | None = None
+    ) -> socket.socket:
+        tmp_sock = self.__sock.dup()
+        if blocking == None:
+            tmp_sock.setblocking(self.__sock.getblocking())
+        else:
+            tmp_sock.setblocking(blocking)
+        if timeout == None:
+            tmp_sock.settimeout(self.__sock.gettimeout())
+        else:
+            tmp_sock.settimeout(timeout)
+        return tmp_sock
 
     @property
     def name(self) -> str:

@@ -61,10 +61,21 @@ class Connection:
 
     def __call_func(self, func_name: str) -> None:
         try:
-            double_commands[func_name].command.client_side(self.__sock)
+            double_commands[func_name].command.client_side(self.socket)
         except Exception as err:
             print(f"{err.__class__} thrown: {err}")
 
     @property
-    def socket(self) -> socket.socket:
-        return self.__sock
+    def socket(
+        self, blocking: bool | None = None, timeout: float | None = None
+    ) -> socket.socket:
+        tmp_sock = self.__sock.dup()
+        if blocking == None:
+            tmp_sock.setblocking(self.__sock.getblocking())
+        else:
+            tmp_sock.setblocking(blocking)
+        if timeout == None:
+            tmp_sock.settimeout(self.__sock.gettimeout())
+        else:
+            tmp_sock.settimeout(timeout)
+        return tmp_sock

@@ -3,10 +3,6 @@ Called it 'C3' because 'C2' is taken by [my previous attempt](https://github.com
 I started a new project because the old project gave me lung cancer from breathing in all of the shit code.
 
 ## Todo
-  - add rmdir command
-  - remove need for creating a temporary socket when writing a new double command
-  - make success indicator text yellow when semi_success is supplied
-  - skip already installed packages in install_modules.py
 
 ## Commands
 ### Double commands (client and server side)

