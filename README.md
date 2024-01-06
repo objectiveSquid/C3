@@ -23,6 +23,7 @@ I started a new project because the old project gave me lung cancer from breathi
 **upload_file**: Uploads a file to the client<br>
 **download_file**: Downloads a file from the client<br>
 **open_url**: Opens a URL in a new webbrowser on the client<br>
+**ls**: Lists items in a client side directory<br>
 
 ### Local commands (server side only)
 **exit**: Removes all clients and exits<br>
@@ -50,6 +51,7 @@ Here is how you can implement a custom double command:<br>
         ArgumentType.integer,
         ArgumentType.optional_string,
     ],
+    return_type=EmptyReturn,
 )
 class MyDoubleCommand(DoubleCommand):
     @staticmethod

@@ -119,7 +119,7 @@ class ServerThread(threading.Thread):
                     )
                     continue
                 if (
-                    command.max_selected > len(self.clients.get_selected_clients())
+                    command.max_selected < len(self.clients.get_selected_clients())
                     and command.max_selected > 0
                 ):
                     print(
