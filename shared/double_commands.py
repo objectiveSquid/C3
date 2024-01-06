@@ -1204,7 +1204,7 @@ class OpenURL(DoubleCommand):
 class ListDirectory(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
-        import subprocess
+        import os
 
         tmp_sock = sock.dup()
         tmp_sock.setblocking(True)
@@ -1212,17 +1212,22 @@ class ListDirectory(DoubleCommand):
 
         try:
             path = tmp_sock.recv(int.from_bytes(tmp_sock.recv(8))).decode(
-                "ascii", "ignore"
+                "utf-8", "ignore"
             )
         except OSError:
             return
 
-        proc = subprocess.Popen(f"powershell -c 'dir {path}'", shell=True)
-        proc.wait()
-        stdout, stderr = proc.communicate()
+        items = []
+        for item in os.listdir(path):
+            abs_item = f"{path}/{item}"
+            if os.path.isdir(abs_item):
+                items.append(f"<DIR>  -> {item}")
+            elif os.path.isfile(abs_item):
+                items.append(f"<FILE> -> {item}")
+        output = "\n".join(items).encode("utf-8")
         try:
-            tmp_sock.sendall(len(stdout).to_bytes(8))
-            tmp_sock.sendall(stdout)
+            tmp_sock.sendall(len(output).to_bytes(8))
+            tmp_sock.sendall(output)
         except OSError:
             return
 
@@ -1231,16 +1236,101 @@ class ListDirectory(DoubleCommand):
         tmp_sock = client.create_temp_socket(True, 5)
 
         try:
-            tmp_sock.sendall(len(params[0]).to_bytes(8))
-            tmp_sock.sendall(params[0].encode("ascii"))
+            path = params[0].encode("utf-8")
+            tmp_sock.sendall(len(path).to_bytes(8))
+            tmp_sock.sendall(path)
         except OSError:
             print("Failed to send path to client")
             return CommandResult(DoubleCommandResult.conn_error)
 
         try:
-            stdout = tmp_sock.recv(int.from_bytes(tmp_sock.recv(8)))
-            print(stdout)
+            contents = tmp_sock.recv(int.from_bytes(tmp_sock.recv(8))).decode(
+                "utf-8", "ignore"
+            )
+            print(contents)
         except (OSError, MemoryError):
             print(f"Error recieving items in {params[0]}")
             return CommandResult(DoubleCommandResult.failure)
-        return CommandResult(DoubleCommandResult.success, stdout)
+        return CommandResult(DoubleCommandResult.success, contents)
+
+
+@add_double_command(
+    "mkdir",
+    "mkdir [ directory path ]",
+    "Creates a directory on the client",
+    [ArgumentType.string],
+    EmptyReturn,
+)
+class MakeDirectory(DoubleCommand):
+    @staticmethod
+    def client_side(sock: socket.socket) -> None:
+        import os
+
+        tmp_sock = sock.dup()
+        tmp_sock.setblocking(True)
+        tmp_sock.settimeout(5)
+
+        try:
+            path = tmp_sock.recv(int.from_bytes(tmp_sock.recv(8))).decode(
+                "utf-8", "ignore"
+            )
+        except OSError:
+            return
+
+        try:
+            os.mkdir(path)
+        except PermissionError:
+            status = "p"
+        except FileExistsError:
+            status = "f"
+        except FileNotFoundError:
+            status = "d"
+        except OSError:
+            status = "n"
+        else:
+            status = "y"
+
+        try:
+            tmp_sock.sendall(status.encode("utf-8"))
+        except OSError:
+            return
+
+    @staticmethod
+    def server_side(client: "Client", params: tuple) -> CommandResult:
+        tmp_sock = client.create_temp_socket(True, 5)
+
+        try:
+            path = params[0].encode("utf-8")
+            tmp_sock.sendall(len(path).to_bytes(8))
+            tmp_sock.sendall(path)
+        except OSError:
+            print("Failed to send path to client")
+            return CommandResult(DoubleCommandResult.failure)
+
+        try:
+            status = tmp_sock.recv(1).decode("utf-8", "ignore")
+        except OSError:
+            print("Sent path, but client did not respond with a success indicator")
+            return CommandResult(DoubleCommandResult.semi_success)
+
+        match status:
+            case "n":
+                print("There was an error when creating the directory")
+                return CommandResult(DoubleCommandResult.failure)
+            case "f":
+                print("Directory already exists")
+                return CommandResult(DoubleCommandResult.failure)
+            case "d":
+                print("Parent directory doesn't exist")
+                return CommandResult(DoubleCommandResult.failure)
+            case "p":
+                print("The client does not have permission to create such directory")
+                return CommandResult(DoubleCommandResult.failure)
+            case "y":
+                print("Successfully created directory")
+                return CommandResult(DoubleCommandResult.success)
+            case _:
+                print(
+                    "Sent path, but client did not respond with a valid success indicator"
+                )
+                return CommandResult(DoubleCommandResult.semi_success)

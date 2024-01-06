@@ -3,7 +3,10 @@ Called it 'C3' because 'C2' is taken by [my previous attempt](https://github.com
 I started a new project because the old project gave me lung cancer from breathing in all of the shit code.
 
 ## Todo
-  All done.
+  - add rmdir command
+  - remove need for creating a temporary socket when writing a new double command
+  - make success indicator text yellow when semi_success is supplied
+  - skip already installed packages in install_modules.py
 
 ## Commands
 ### Double commands (client and server side)
@@ -24,6 +27,7 @@ I started a new project because the old project gave me lung cancer from breathi
 **download_file**: Downloads a file from the client<br>
 **open_url**: Opens a URL in a new webbrowser on the client<br>
 **ls**: Lists items in a client side directory<br>
+**mkdir**: Creates a directory on the client<br>
 
 ### Local commands (server side only)
 **exit**: Removes all clients and exits<br>
