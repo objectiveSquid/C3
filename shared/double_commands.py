@@ -1462,3 +1462,54 @@ class MakeFile(DoubleCommand):
                     "Sent path, but client did not respond with a valid success indicator"
                 )
                 return CommandResult(DoubleCommandResult.semi_success)
+
+
+@add_double_command(
+    "list_procs",
+    "list_procs",
+    "Lists processes running on the client",
+    [],
+    list[tuple[int, str]],
+    required_client_modules=["psutil"],
+)
+class ListProcesses(DoubleCommand):
+    @staticmethod
+    def client_side(sock: socket.socket) -> EmptyReturn:
+        import psutil
+
+        for proc in psutil.process_iter(["pid", "name"]):
+            try:
+                # process pid
+                if proc.pid == 0:
+                    continue
+                sock.sendall(proc.pid.to_bytes(4))
+                # process name
+                sock.sendall(len(proc.name().encode("utf-8")).to_bytes(2))
+                sock.sendall(proc.name().encode("utf-8"))
+            except psutil.Error:
+                continue
+            except OSError:
+                return
+        try:
+            sock.sendall(int(0).to_bytes(4))
+        except OSError:
+            return
+
+    @staticmethod
+    def server_side(client: "Client", params: tuple) -> CommandResult:
+        procs = []
+        while True:
+            try:
+                pid = int.from_bytes(client.socket.recv(4))
+                if pid == 0:
+                    break
+                proc_name = client.socket.recv(
+                    int.from_bytes(client.socket.recv(2))
+                ).decode("utf-8", "ignore")
+
+                print(f"{pid} {'-' * (11 - len(str(pid)))}> {proc_name}")
+                procs.append((pid, proc_name))
+            except (OSError, MemoryError):
+                break
+
+        return CommandResult(DoubleCommandResult.success, procs)
