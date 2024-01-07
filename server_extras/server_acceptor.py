@@ -19,6 +19,8 @@ class ServerAcceptorThread(threading.Thread):
             except OSError:
                 time.sleep(0.1)
                 continue
+            client_socket.setblocking(True)
+            client_socket.settimeout(5)
             self.__clients.add(Client(client_socket, client_ip, client_port))
 
     def stop(self) -> None:
