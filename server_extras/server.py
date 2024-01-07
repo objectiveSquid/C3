@@ -3,22 +3,38 @@ from server_extras.local_command import InternalLocalCommand, local_commands
 from shared.extras.command import ExecuteCommandResult, CommandResult
 from server_extras.server_acceptor import ServerAcceptorThread
 from server_extras.command_parser import parse_command
+from server_extras.client import ClientBucket, Client
 from server_extras.custom_io import CustomStdout
-from server_extras.client import ClientBucket
 
-import concurrent.futures as futures
 from typing import Callable, Any
-import contextlib
+import multiprocessing
 import threading
 import colorama
 import socket
-import io
 
 # We must initialize the commands to add them to the collection of commands
 import server_extras.local_commands as _
 import shared.double_commands as _
 
 del _
+
+
+def capture_stdout_wrapper(
+    output_queue: multiprocessing.Queue,
+    func: Callable[..., Any],
+    *args: Any,
+    **kwargs: Any,
+) -> None:
+    import sys
+    import io
+
+    stdout_capture = io.StringIO()
+    sys.stdout = stdout_capture
+    sys.stderr = stdout_capture
+
+    command_result = func(*args, **kwargs)
+
+    output_queue.put((stdout_capture.getvalue(), command_result))
 
 
 class ServerThread(threading.Thread):
@@ -29,7 +45,7 @@ class ServerThread(threading.Thread):
 
         self.__running = True
         self.__socket = socket.socket()
-        self.__socket.setblocking(False)
+        self.__socket.setblocking(True)
         self.__socket.settimeout(5)
         self.__custom_stdout = CustomStdout()
         self.__clients = ClientBucket(self.__custom_stdout)
@@ -97,18 +113,6 @@ class ServerThread(threading.Thread):
             if invalid_param:
                 continue
 
-            def capture_stdout_wrapper(
-                func: Callable[..., Any], *args: Any, **kwargs: Any
-            ) -> tuple[str, Any]:
-                stdout_capture = io.StringIO()
-
-                with contextlib.redirect_stdout(
-                    stdout_capture
-                ), contextlib.redirect_stderr(stdout_capture):
-                    command_result = func(*args, **kwargs)
-
-                return stdout_capture.getvalue(), command_result
-
             if isinstance(command, InternalDoubleCommand):
                 command_results: dict[str, CommandResult] = {}
                 selected_clients = self.__clients.get_selected_clients()
@@ -125,79 +129,54 @@ class ServerThread(threading.Thread):
                     print(
                         f"You must have at most {command.max_selected} selected clients to run this command."
                     )
-                if not command.no_multitask:
-                    tasks = []
-                    with futures.ThreadPoolExecutor(len(selected_clients) or 1) as pool:
-                        for selected_client in selected_clients:
-                            if selected_client not in alive_clients:
-                                print(
-                                    f"Client '{selected_client.name}' is dead, skipping.",
-                                    flush=True,
-                                )
-                                continue
-                            tasks.append(
-                                (
-                                    selected_client.name,
-                                    pool.submit(
-                                        capture_stdout_wrapper,
-                                        selected_client.execute_command,
-                                        command,
-                                        cmd.parameters,
-                                    ),
-                                )
-                            )
-                        for client_name, task in tasks:
-                            while not task.done:
-                                pass
-                            stdout_cap, command_result = task.result()
-                            print(
-                                f"Completed execution of command on client '{client_name}' (status: ",
-                                flush=True,
-                                end="",
-                            )
-                            match command_result.status:
-                                case ExecuteCommandResult.success:
-                                    print(colorama.Fore.LIGHTGREEN_EX, end="")
-                                case ExecuteCommandResult.semi_success:
-                                    print(colorama.Fore.YELLOW, end="")
-                                case _:
-                                    print(colorama.Fore.RED, end="")
-                            print(
-                                f"{command_result.status.name}{colorama.Fore.RESET}):",
-                                flush=True,
-                            )
-                            print(stdout_cap, end="", flush=True)
-                            command_results[client_name] = command_result
-                else:
-                    for selected_client in self.__clients.get_selected_clients():
-                        if selected_client not in alive_clients:
-                            print(f"Client '{selected_client.name}' is dead, skipping.")
-                            continue
-                        stdout_cap = io.StringIO()
-                        with contextlib.redirect_stdout(
-                            stdout_cap
-                        ), contextlib.redirect_stderr(stdout_cap):
-                            command_result = selected_client.execute_command(
-                                command, cmd.parameters
-                            )
-                        command_results[selected_client.name] = command_result
+                tasks: list[
+                    tuple[str, multiprocessing.Queue, multiprocessing.Process]
+                ] = []
+                for selected_client in selected_clients:
+                    if selected_client not in alive_clients:
                         print(
-                            f"Completed execution of command on client '{selected_client.name}' (status: ",
-                            flush=True,
-                            end="",
-                        )
-                        match command_result.status:
-                            case ExecuteCommandResult.success:
-                                print(colorama.Fore.LIGHTGREEN_EX, end="")
-                            case ExecuteCommandResult.semi_success:
-                                print(colorama.Fore.YELLOW, end="")
-                            case _:
-                                print(colorama.Fore.RED, end="")
-                        print(
-                            f"{command_result.status.name}{colorama.Fore.RESET}):",
+                            f"Client '{selected_client.name}' is dead, skipping.",
                             flush=True,
                         )
-                        print(stdout_cap, end="")
+                        continue
+                    stdout_queue = multiprocessing.Queue()
+                    proc = multiprocessing.Process(
+                        target=capture_stdout_wrapper,
+                        args=(
+                            stdout_queue,
+                            Client.execute_command,
+                            selected_client,
+                            command,
+                            cmd.parameters,
+                        ),
+                    )
+
+                    proc.start()
+                    tasks.append((selected_client.name, stdout_queue, proc))
+                    if command.no_multitask:
+                        proc.join()
+
+                for client_name, queue, task in tasks:
+                    task.join()
+                    stdout_cap, command_result = queue.get()
+                    print(
+                        f"Completed execution of command on client '{client_name}' (status: ",
+                        flush=True,
+                        end="",
+                    )
+                    match command_result.status:
+                        case ExecuteCommandResult.success:
+                            print(colorama.Fore.LIGHTGREEN_EX, end="")
+                        case ExecuteCommandResult.semi_success:
+                            print(colorama.Fore.YELLOW, end="")
+                        case _:
+                            print(colorama.Fore.RED, end="")
+                    print(
+                        f"{command_result.status.name}{colorama.Fore.RESET}):",
+                        flush=True,
+                    )
+                    print(stdout_cap, end="", flush=True)
+                    command_results[client_name] = command_result
             elif isinstance(command, InternalLocalCommand):
                 command.command.local_side(self, tuple(cmd.parameters))
 

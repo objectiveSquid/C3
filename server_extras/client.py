@@ -44,6 +44,7 @@ class Client:
         cmd: InternalDoubleCommand,
         params: list[CommandToken],
     ) -> CommandResult:
+        self.__sock.setblocking(True)
         retries = 0
         sent_cmd = False
         while retries < 3:
