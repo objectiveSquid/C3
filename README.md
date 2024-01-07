@@ -3,7 +3,6 @@ Called it 'C3' because 'C2' is taken by [my previous attempt](https://github.com
 I started a new project because the old project gave me lung cancer from breathing in all of the shit code.
 
 ## Todo
-  - add 'chdir' double command
 
 ## Commands
 ### Double commands (client and server side)
@@ -29,6 +28,7 @@ I started a new project because the old project gave me lung cancer from breathi
 **del**: Deletes a file on the client<br>
 **touch**: Creates a file on the client<br>
 **list_procs**: Lists the running processes on the client<br>
+**chdir**: Changes the clients current working directory (CWD)<br>
 
 ### Local commands (server side only)
 **exit**: Removes all clients and exits<br>

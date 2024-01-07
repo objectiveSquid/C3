@@ -1513,3 +1513,64 @@ class ListProcesses(DoubleCommand):
                 break
 
         return CommandResult(DoubleCommandResult.success, procs)
+
+
+@add_double_command("chdir", "chdir [ path ]", "Changes the working directory on the client", [ArgumentType.string], EmptyReturn, max_selected=1)
+class ChangeCWD(DoubleCommand):
+    @staticmethod
+    def client_side(sock: socket.socket) -> None:
+        import os
+
+        try:
+            path = sock.recv(int.from_bytes(sock.recv(2)))
+        except OSError:
+            return
+        
+        try:
+            os.chdir(path)
+        except PermissionError:
+            status = "p"
+        except FileNotFoundError:
+            status = "f"
+        except OSError:
+            status = "n"
+        else:
+            status = "y"
+
+        try:
+            sock.sendall(status.encode("utf-8"))
+        except OSError:
+            return
+
+    @staticmethod
+    def server_side(client: "Client", params: tuple) -> CommandResult:
+        try:
+            path = params[0].encode("utf-8")
+            client.socket.sendall(len(path).to_bytes(2))
+            client.socket.sendall(path)
+        except OSError:
+            print("Error sending path to client")
+            return CommandResult(DoubleCommandResult.conn_error)
+        
+        try:
+            success_indicator = client.socket.recv(1).decode("ascii", "ignore")
+        except OSError:
+            print("Sent path but client did not respond with a success indicator")
+            return CommandResult(DoubleCommandResult.semi_success)
+        
+        match success_indicator:
+            case "y":
+                print("Successfully changed working directory")
+                return CommandResult(DoubleCommandResult.success)
+            case "n":
+                print("Client says that the working directory is invalid")
+                return CommandResult(DoubleCommandResult.failure)
+            case "f":
+                print("Directory not found on client")
+                return CommandResult(DoubleCommandResult.failure)
+            case "p":
+                print("Client does not have permission to enter such directory")
+                return CommandResult(DoubleCommandResult.failure)
+            case _:
+                print("Sent path but client did not respond with a valid success indicator")
+                return CommandResult(DoubleCommandResult.failure)
