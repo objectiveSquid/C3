@@ -83,7 +83,7 @@ def parse_command(command_line: str) -> ParsedCommand:
     while parser.has_more_chars:
         if parser.peek().isalpha():
             string = ""
-            while parser.peek().isalnum():
+            while parser.peek().isalnum() or parser.peek() == "_":
                 string += parser.consume()
             parser.add_token(string)
         elif parser.peek() in "\"'":
@@ -111,13 +111,20 @@ def parse_command(command_line: str) -> ParsedCommand:
                         return ParsedCommand(invalid=True)
                     is_float = True
                 num_as_string += parser.consume()
+            if not parser.peek().isspace() or len(parser.peek()) == 0:
+                print(
+                    "Invalid number, if you are trying to input a string you can put quotation marks around it to avoid this error."
+                )
+                return ParsedCommand(invalid=True)
             try:
                 if is_float:
                     parser.add_token(float(num_as_string))
                 else:
                     parser.add_token(int(num_as_string))
             except (ValueError, TypeError):
-                print("Invalid number")
+                print(
+                    "Invalid number, if you are trying to input a string you can put quotation marks around it to avoid this error."
+                )
                 return ParsedCommand(invalid=True)
         elif parser.peek().isspace():
             parser.consume()
