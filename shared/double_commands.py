@@ -1117,7 +1117,6 @@ class OpenURL(DoubleCommand):
     "Lists a directory on the client",
     [ArgumentType.string],
     EmptyReturn,
-    max_selected=1,
 )
 class ListDirectory(DoubleCommand):
     @staticmethod
@@ -1248,6 +1247,7 @@ class MakeDirectory(DoubleCommand):
 class DeleteDirectory(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
+        import os.path
         import shutil
 
         try:
@@ -1265,6 +1265,9 @@ class DeleteDirectory(DoubleCommand):
             status = "n"
         else:
             status = "y"
+
+        if os.path.isfile(path):
+            status = "f"
 
         try:
             sock.sendall(status.encode("utf-8"))
@@ -1297,8 +1300,86 @@ class DeleteDirectory(DoubleCommand):
             case "p":
                 print("The client does not have permission to remove such directory")
                 return CommandResult(DoubleCommandResult.failure)
+            case "f":
+                print("That path is a file")
+                return CommandResult(DoubleCommandResult.failure)
             case "y":
                 print("Successfully deleted directory")
+                return CommandResult(DoubleCommandResult.success)
+            case _:
+                print(
+                    "Sent path, but client did not respond with a valid success indicator"
+                )
+                return CommandResult(DoubleCommandResult.semi_success)
+
+
+@add_double_command(
+    "del",
+    "del [ file path ]",
+    "Deletes a file on the client",
+    [ArgumentType.string],
+    EmptyReturn,
+)
+class DeleteFile(DoubleCommand):
+    @staticmethod
+    def client_side(sock: socket.socket) -> None:
+        import os
+
+        try:
+            path = sock.recv(int.from_bytes(sock.recv(8)))
+        except OSError:
+            return
+
+        try:
+            os.remove(path)
+        except PermissionError:
+            status = "p"
+        except FileNotFoundError:
+            status = "d"
+        except OSError:
+            status = "n"
+        else:
+            status = "y"
+
+        if os.path.isdir(path):
+            status = "f"
+
+        try:
+            sock.sendall(status.encode("utf-8"))
+        except OSError:
+            return
+
+    @staticmethod
+    def server_side(client: "Client", params: tuple) -> CommandResult:
+        try:
+            path = params[0].encode("utf-8")
+            client.socket.sendall(len(path).to_bytes(8))
+            client.socket.sendall(path)
+        except OSError:
+            print("Failed to send path to client")
+            return CommandResult(DoubleCommandResult.failure)
+
+        try:
+            status = client.socket.recv(1).decode("utf-8", "ignore")
+        except OSError:
+            print("Sent path, but client did not respond with a success indicator")
+            return CommandResult(DoubleCommandResult.semi_success)
+
+        match status:
+            case "n":
+                print("There was an error when deleting the file")
+                return CommandResult(DoubleCommandResult.failure)
+            case "d":
+                print("Directory doesn't exist")
+                return CommandResult(DoubleCommandResult.failure)
+            case "p":
+                print("The client does not have permission to remove such file")
+                return CommandResult(DoubleCommandResult.failure)
+            case "f":
+                print("That path is a directory")
+                return CommandResult(DoubleCommandResult.failure)
+            case "y":
+                print("Successfully deleted file")
                 return CommandResult(DoubleCommandResult.success)
             case _:
                 print(
