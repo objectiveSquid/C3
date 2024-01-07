@@ -27,6 +27,7 @@ I started a new project because the old project gave me lung cancer from breathi
 **mkdir**: Creates a directory on the client<br>
 **rmdir**: Recursively removes a directory on the client<br>
 **del**: Deletes a file on the client<br>
+**touch**: Creates a file on the client<br>
 
 ### Local commands (server side only)
 **exit**: Removes all clients and exits<br>

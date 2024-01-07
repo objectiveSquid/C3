@@ -1386,3 +1386,79 @@ class DeleteFile(DoubleCommand):
                     "Sent path, but client did not respond with a valid success indicator"
                 )
                 return CommandResult(DoubleCommandResult.semi_success)
+
+
+@add_double_command(
+    "touch",
+    "touch [ file path ]",
+    "Creates a file on the client",
+    [ArgumentType.string],
+    EmptyReturn,
+)
+class MakeFile(DoubleCommand):
+    @staticmethod
+    def client_side(sock: socket.socket) -> None:
+        import os.path
+
+        try:
+            path = sock.recv(int.from_bytes(sock.recv(8))).decode("utf-8", "ignore")
+        except OSError:
+            return
+
+        try:
+            if os.path.exists(path):
+                raise FileExistsError("file already exists")
+            open(path, "wb").close()
+        except PermissionError:
+            status = "p"
+        except FileExistsError:
+            status = "f"
+        except FileNotFoundError:
+            status = "d"
+        except OSError:
+            status = "n"
+        else:
+            status = "y"
+
+        try:
+            sock.sendall(status.encode("utf-8"))
+        except OSError:
+            return
+
+    @staticmethod
+    def server_side(client: "Client", params: tuple) -> CommandResult:
+        try:
+            path = params[0].encode("utf-8")
+            client.socket.sendall(len(path).to_bytes(8))
+            client.socket.sendall(path)
+        except OSError:
+            print("Failed to send path to client")
+            return CommandResult(DoubleCommandResult.failure)
+
+        try:
+            status = client.socket.recv(1).decode("utf-8", "ignore")
+        except OSError:
+            print("Sent path, but client did not respond with a success indicator")
+            return CommandResult(DoubleCommandResult.semi_success)
+
+        match status:
+            case "n":
+                print("There was an error when creating the file")
+                return CommandResult(DoubleCommandResult.failure)
+            case "f":
+                print("File already exists")
+                return CommandResult(DoubleCommandResult.failure)
+            case "d":
+                print("Parent directory doesn't exist")
+                return CommandResult(DoubleCommandResult.failure)
+            case "p":
+                print("The client does not have permission to create such file")
+                return CommandResult(DoubleCommandResult.failure)
+            case "y":
+                print("Successfully created file")
+                return CommandResult(DoubleCommandResult.success)
+            case _:
+                print(
+                    "Sent path, but client did not respond with a valid success indicator"
+                )
+                return CommandResult(DoubleCommandResult.semi_success)
