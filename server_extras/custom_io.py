@@ -10,6 +10,7 @@ class StdoutStringIO(io.StringIO):
 
     def write(self, __s: str) -> int:
         self.__target_stdout.write(__s)
+        self.__target_stdout.flush()
         return super().write(__s)
 
 
