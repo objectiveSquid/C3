@@ -1,3 +1,5 @@
+import shlex
+
 type CommandToken = str | int | float
 
 
@@ -79,56 +81,29 @@ class CommandParser:
 
 
 def parse_command(command_line: str) -> ParsedCommand:
-    parser = CommandParser(command_line)
-    while parser.has_more_chars:
-        if parser.peek().isalpha():
-            string = ""
-            while parser.peek().isalnum() or parser.peek() == "_":
-                string += parser.consume()
-            parser.add_token(string)
-        elif parser.peek() in "\"'":
-            string_lit_starter = parser.consume()
-            string = ""
-            escape = False
-            while parser.peek() != string_lit_starter or escape:
-                if parser.peek() == "\\" or escape:
-                    if not escape:
-                        parser.consume()
-                    else:
-                        string += eval(f"'\\{parser.consume()}'")
-                    escape = not escape
-                else:
-                    string += parser.consume()
-            parser.consume()
-            parser.add_token(string)
-        elif parser.peek().isdecimal() or parser.peek() == ".":
-            num_as_string = ""
-            is_float = False
-            while parser.peek().isdecimal() or parser.peek() == ".":
-                if parser.peek() == ".":
-                    if is_float:
-                        print(f"Invalid float character at index {parser.progress + 1}")
-                        return ParsedCommand(invalid=True)
-                    is_float = True
-                num_as_string += parser.consume()
-            if not parser.peek().isspace() or len(parser.peek()) == 0:
-                print(
-                    "Invalid number, if you are trying to input a string you can put quotation marks around it to avoid this error."
-                )
-                return ParsedCommand(invalid=True)
-            try:
-                if is_float:
-                    parser.add_token(float(num_as_string))
-                else:
-                    parser.add_token(int(num_as_string))
-            except (ValueError, TypeError):
-                print(
-                    "Invalid number, if you are trying to input a string you can put quotation marks around it to avoid this error."
-                )
-                return ParsedCommand(invalid=True)
-        elif parser.peek().isspace():
-            parser.consume()
-        else:
-            print("Invalid command")
+    tokens = []
+    items = shlex.split(command_line, posix=True)
+    for item in items:
+        if item.isdecimal():
+            tokens.append(int(item))
+            continue
+        try:
+            float(item)
+            tokens.append(float(item))
+        except ValueError:
+            tokens.append(item)
+    escaped_tokens = []
+    for token in tokens:
+        if not isinstance(token, str):
+            escaped_tokens.append(token)
+            continue
+        try:
+            if "'" in token:
+                escaped_tokens.append(eval(f'"{token}"'))
+            elif '"' in token:
+                escaped_tokens.append(eval(f"'{token}'"))
+            else:
+                escaped_tokens.append(token)
+        except SyntaxError:
             return ParsedCommand(invalid=True)
-    return ParsedCommand(parser.tokens)
+    return ParsedCommand(escaped_tokens)
