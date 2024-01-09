@@ -3,7 +3,6 @@ Called it 'C3' because 'C2' is taken by [my previous attempt](https://github.com
 I started a new project because the old project gave me lung cancer from breathing in all of the shit code.
 
 ## Todo
-  - message double command
   - collect system info double command
 
 ## Commands
@@ -33,6 +32,7 @@ I started a new project because the old project gave me lung cancer from breathi
 **chdir**: Changes the clients current working directory (CWD)<br>
 **clipboard_set**: Sets the clipboard value on the client<br>
 **clipboard_get**: Gets the clipboard value on the client<br>
+**popup**: Displays a popup message on the clients screen<br>
 
 ### Local commands (server side only)
 **exit**: Removes all clients and exits<br>

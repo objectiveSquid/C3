@@ -1,4 +1,3 @@
-from server_extras.client import Client
 from shared.extras.double_command import (
     DoubleCommandResult,
     add_double_command,
@@ -1607,7 +1606,7 @@ class SetClipboard(DoubleCommand):
         pyperclip.copy(value)
 
     @staticmethod
-    def server_side(client: Client, params: tuple) -> CommandResult:
+    def server_side(client: "Client", params: tuple) -> CommandResult:
         try:
             value = params[0].encode("utf-8")
             client.socket.sendall(len(value).to_bytes(2))
@@ -1641,7 +1640,7 @@ class GetClipboard(DoubleCommand):
             return
 
     @staticmethod
-    def server_side(client: Client, params: tuple) -> CommandResult:
+    def server_side(client: "Client", params: tuple) -> CommandResult:
         try:
             value = client.socket.recv(int.from_bytes(client.socket.recv(2))).decode(
                 "utf-8"
@@ -1652,3 +1651,72 @@ class GetClipboard(DoubleCommand):
 
         print(f"Client clipboard: {value}")
         return CommandResult(DoubleCommandResult.success, value)
+
+
+@add_double_command(
+    "popup",
+    "popup [ title ] [ message ]",
+    "Displays a popup message on the clients screen",
+    [ArgumentType.string, ArgumentType.string],
+    EmptyReturn,
+)
+class Popup(DoubleCommand):
+    @staticmethod
+    def client_side(sock: socket.socket) -> EmptyReturn:
+        import threading
+        import ctypes
+
+        try:
+            title = sock.recv(int.from_bytes(sock.recv(2))).decode("utf-8", "ignore")
+            message = sock.recv(int.from_bytes(sock.recv(2))).decode("utf-8", "ignore")
+        except OSError:
+            return
+
+        try:
+            threading.Thread(
+                target=lambda: ctypes.windll.user32.MessageBoxW(
+                    0, message, title, 0x40
+                ),
+                name="Popup",
+            ).start()
+        except Exception:
+            status = "n"
+        else:
+            status = "y"
+
+        try:
+            sock.sendall(status.encode("utf-8"))
+        except OSError:
+            return
+
+    @staticmethod
+    def server_side(client: "Client", params: tuple) -> CommandResult:
+        try:
+            title = params[0].encode("utf-8")
+            msg = params[1].encode("utf-8")
+            client.socket.sendall(len(title).to_bytes(2))
+            client.socket.sendall(title)
+            client.socket.sendall(len(msg).to_bytes(2))
+            client.socket.sendall(msg)
+        except OSError:
+            print("Failed to send message to client")
+            return CommandResult(DoubleCommandResult.conn_error)
+
+        try:
+            success_indicator = client.socket.recv(1).decode("utf-8")
+        except OSError:
+            print("Sent message, but client did not respond with a success indicator")
+            return CommandResult(DoubleCommandResult.semi_success)
+
+        match success_indicator:
+            case "y":
+                print("Successfully displayed popup")
+                return CommandResult(DoubleCommandResult.success)
+            case "n":
+                print("Failed to display popup")
+                return CommandResult(DoubleCommandResult.failure)
+            case _:
+                print(
+                    "Sent message, but client did not respond with a valid success indicator"
+                )
+                return CommandResult(DoubleCommandResult.semi_success)
