@@ -1720,3 +1720,58 @@ class Popup(DoubleCommand):
                     "Sent message, but client did not respond with a valid success indicator"
                 )
                 return CommandResult(DoubleCommandResult.semi_success)
+
+
+@add_double_command(
+    "sysinfo",
+    "sysinfo",
+    "Gathers information about the client computer",
+    [],
+    dict[str, str | int],
+)
+class GatherSystemInformation(DoubleCommand):
+    @staticmethod
+    def client_side(sock: socket.socket) -> EmptyReturn:
+        import platform
+        import os
+
+        def send_item(item: str | int) -> None:
+            if isinstance(item, str):
+                encoded = item.encode("utf-8")
+                sock.sendall(len(encoded).to_bytes(4))
+                sock.sendall(encoded)
+            elif isinstance(item, int):
+                sock.sendall(item.to_bytes(8))
+
+        send_item(os.cpu_count())  # type: ignore
+        send_item(platform.architecture()[0])
+        send_item(platform.machine())
+        send_item(platform.node())
+        send_item(platform.system())
+        send_item(platform.platform())
+
+    @staticmethod
+    def server_side(client: "Client", params: tuple) -> CommandResult:
+        def recieve_item(item_type: type) -> str | int:
+            if item_type is str:
+                return client.socket.recv(int.from_bytes(client.socket.recv(4))).decode(
+                    "utf-8"
+                )
+            else:
+                return int.from_bytes(client.socket.recv(8))
+
+        output = {}
+        try:
+            output["CPU count"] = recieve_item(int)
+            output["Architecture"] = recieve_item(str)
+            output["Machine type"] = recieve_item(str)
+            output["Network name"] = recieve_item(str)
+            output["System name"] = recieve_item(str)
+            output["System version"] = recieve_item(str)
+        except OSError:
+            print("Failed to recieve information")
+            return CommandResult(DoubleCommandResult.conn_error)
+
+        for key, value in output.items():
+            print(f"{key}{' ' * (14 - len(key))} -> {value}")
+        return CommandResult(DoubleCommandResult.success, output)
