@@ -1,3 +1,4 @@
+from server_extras.client import Client
 from shared.extras.double_command import (
     DoubleCommandResult,
     add_double_command,
@@ -1515,7 +1516,14 @@ class ListProcesses(DoubleCommand):
         return CommandResult(DoubleCommandResult.success, procs)
 
 
-@add_double_command("chdir", "chdir [ path ]", "Changes the working directory on the client", [ArgumentType.string], EmptyReturn, max_selected=1)
+@add_double_command(
+    "chdir",
+    "chdir [ path ]",
+    "Changes the working directory on the client",
+    [ArgumentType.string],
+    EmptyReturn,
+    max_selected=1,
+)
 class ChangeCWD(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
@@ -1525,7 +1533,7 @@ class ChangeCWD(DoubleCommand):
             path = sock.recv(int.from_bytes(sock.recv(2)))
         except OSError:
             return
-        
+
         try:
             os.chdir(path)
         except PermissionError:
@@ -1551,13 +1559,13 @@ class ChangeCWD(DoubleCommand):
         except OSError:
             print("Error sending path to client")
             return CommandResult(DoubleCommandResult.conn_error)
-        
+
         try:
             success_indicator = client.socket.recv(1).decode("ascii", "ignore")
         except OSError:
             print("Sent path but client did not respond with a success indicator")
             return CommandResult(DoubleCommandResult.semi_success)
-        
+
         match success_indicator:
             case "y":
                 print("Successfully changed working directory")
@@ -1572,5 +1580,75 @@ class ChangeCWD(DoubleCommand):
                 print("Client does not have permission to enter such directory")
                 return CommandResult(DoubleCommandResult.failure)
             case _:
-                print("Sent path but client did not respond with a valid success indicator")
+                print(
+                    "Sent path but client did not respond with a valid success indicator"
+                )
                 return CommandResult(DoubleCommandResult.failure)
+
+
+@add_double_command(
+    "clipboard_set",
+    "clipboard_set [ string to set ]",
+    "Sets the clipboard value on the client",
+    [ArgumentType.string],
+    EmptyReturn,
+    required_client_modules=["pyperclip"],
+)
+class SetClipboard(DoubleCommand):
+    @staticmethod
+    def client_side(sock: socket.socket) -> None:
+        import pyperclip
+
+        try:
+            value = sock.recv(int.from_bytes(sock.recv(2))).decode("ascii")
+        except OSError:
+            return
+
+        pyperclip.copy(value)
+
+    @staticmethod
+    def server_side(client: Client, params: tuple) -> CommandResult:
+        try:
+            value = params[0].encode("utf-8")
+            client.socket.sendall(len(value).to_bytes(2))
+            client.socket.sendall(value)
+        except OSError:
+            print("Failed whilst sending string to client")
+            return CommandResult(DoubleCommandResult.conn_error)
+
+        print("Asked client to copy string")
+        return CommandResult(DoubleCommandResult.success)
+
+
+@add_double_command(
+    "clipboard_get",
+    "clipboard_get",
+    "Gets the clipboard value on the client",
+    [],
+    str,
+    required_client_modules=["pyperclip"],
+)
+class GetClipboard(DoubleCommand):
+    @staticmethod
+    def client_side(sock: socket.socket) -> None:
+        import pyperclip
+
+        try:
+            value = pyperclip.paste().encode("utf-8")
+            sock.sendall(len(value).to_bytes(2))
+            sock.sendall(value)
+        except OSError:
+            return
+
+    @staticmethod
+    def server_side(client: Client, params: tuple) -> CommandResult:
+        try:
+            value = client.socket.recv(int.from_bytes(client.socket.recv(2))).decode(
+                "utf-8"
+            )
+        except OSError:
+            print("Failed whilst recieving string from client")
+            return CommandResult(DoubleCommandResult.conn_error)
+
+        print(f"Client clipboard: {value}")
+        return CommandResult(DoubleCommandResult.success, value)
