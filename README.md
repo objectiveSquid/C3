@@ -33,6 +33,7 @@ I started a new project because the old project gave me lung cancer from breathi
 **clipboard_get**: Gets the clipboard value on the client<br>
 **popup**: Displays a popup message on the clients screen<br>
 **sysinfo**: Gathers information from the client computer<br>
+**ipinfo**: Gets information about the client IP<br>
 
 ### Local commands (server side only)
 **exit**: Removes all clients and exits<br>
