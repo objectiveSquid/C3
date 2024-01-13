@@ -71,11 +71,9 @@ class MyDoubleCommand(DoubleCommand):
 
     @staticmethod
     def server_side(client, params):
-        tmp_sock = client.create_temp_socket(blocking=True, timeout=5)
-
-        tmp_sock.sendall(f"(required) Integer argument (1): {params[0]}\n".encode())
+        client.socket.sendall(f"(required) Integer argument (1): {params[0]}\n".encode())
         if len(params) == 2:
-            tmp_sock.sendall(f"(optional) String argument (2): {params[1]}\n".encode())
+            client.socket.sendall(f"(optional) String argument (2): {params[1]}\n".encode())
 
         return CommandResult(LocalCommandResult.success)
 ```
