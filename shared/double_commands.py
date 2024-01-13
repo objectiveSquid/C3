@@ -554,7 +554,7 @@ class CaptureWebcamImage(DoubleCommand):
             with open(f"webcam_images/{tmp_name}.png", "wb") as screenshot_file:
                 screenshot_file.write(img_contents)
 
-        print(f"Captured screenshot: webcam_images/{tmp_name or client.name}.png")
+        print(f"Captured image: webcam_images/{tmp_name or client.name}.png")
         return CommandResult(
             DoubleCommandResult.success,
             (f"webcam_images/{tmp_name or client.name}.png", bytes(img_contents)),
