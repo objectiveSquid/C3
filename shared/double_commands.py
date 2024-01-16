@@ -1933,3 +1933,78 @@ class Shell(DoubleCommand):
         bail("Connection terminated")
 
         return CommandResult(DoubleCommandResult.success)
+
+
+@add_double_command(
+    "playsound",
+    "playsound [ local file path ]",
+    "Plays a sound file on the client",
+    [ArgumentType.string],
+    EmptyReturn,
+    required_client_modules=["pyglet"],
+)
+class PlaySound(DoubleCommand):
+    @staticmethod
+    def client_side(sock: socket.socket) -> None:
+        import threading
+        import pyglet
+        import os
+
+        def play_sound(path: str) -> None:
+            def on_player_eos() -> None:
+                pyglet.app.exit()
+
+            player = pyglet.media.Player()
+            source = pyglet.media.StaticSource(pyglet.media.load(path))
+            player.queue(source)
+            player.play()
+            player.push_handlers(on_player_eos)
+            pyglet.app.run()
+
+        try:
+            sound_contents = sock.recv(int.from_bytes(sock.recv(4)))
+            if sound_contents == b"EXIT":
+                return
+            sound_format = sock.recv(int.from_bytes(sock.recv(2)))
+        except OSError:
+            return
+
+        sound_file = f"{os.getenv('TEMP')}/sound.{sound_format}"
+        with open(sound_file, "wb") as sound_file_fd:
+            sound_file_fd.write(sound_contents)
+
+        threading.Thread(
+            target=play_sound, args=[sound_file], name="Play sound Thread"
+        ).start()
+
+    @staticmethod
+    def server_side(client: Client, params: tuple) -> CommandResult:
+        import os
+
+        def bail(display_msg: str, bail_client: bool) -> None:
+            print(display_msg)
+            if bail_client:
+                try:
+                    client.socket.sendall(int(4).to_bytes(4))
+                    client.socket.sendall(b"EXIT")
+                except OSError:
+                    pass
+
+        try:
+            with open(params[0], "rb") as sound_file_fd:
+                sound_contents = sound_file_fd.read()
+        except FileNotFoundError:
+            bail(f"File '{params[0]}' not found", True)
+            return CommandResult(DoubleCommandResult.param_error)
+        sound_format = os.path.splitext(params[0])[1].encode()
+        try:
+            client.socket.sendall(len(sound_contents).to_bytes(4))
+            client.socket.sendall(sound_contents)
+            client.socket.sendall(len(sound_format).to_bytes(2))
+            client.socket.sendall(sound_format)
+        except OSError:
+            bail("Failed whilst sending sound to client", False)
+            return CommandResult(DoubleCommandResult.conn_error)
+
+        print("Played sound on client")
+        return CommandResult(DoubleCommandResult.success)
