@@ -12,7 +12,7 @@ class Connection:
         self.__sock = socket.socket()
         self.__sock.setblocking(True)
         self.__sock.settimeout(5)
-        self.__sock.connect((remote_ip, remote_port))
+        self.connect(remote_ip, remote_port)
 
     def connect(self, ip: str, port: int) -> None:
         try:
