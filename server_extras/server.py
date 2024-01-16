@@ -1,8 +1,8 @@
 from shared.extras.double_command import InternalDoubleCommand, double_commands
 from server_extras.local_command import InternalLocalCommand, local_commands
 from shared.extras.command import ExecuteCommandResult, CommandResult
+from server_extras.command_parser import ParsedCommand, parse_command
 from server_extras.server_acceptor import ServerAcceptorThread
-from server_extras.command_parser import parse_command
 from server_extras.client import ClientBucket, Client
 from server_extras.custom_io import CustomStdout
 
@@ -69,27 +69,27 @@ class ServerThread(threading.Thread):
                 continue
             if len(command_line) == 0:
                 continue
-            cmd = parse_command(command_line)
-            if cmd.is_invalid:
+            cmdline_args = parse_command(command_line)
+            if cmdline_args.is_invalid:
                 print("Invalid command supplied.")
                 continue
-            command_name = cmd.command_name
+            command_name = cmdline_args.command_name
             command = double_commands.get(command_name) or local_commands.get(
                 command_name
             )
             if command == None:
                 print(f"Command '{command_name}' doesn't exist.")
                 continue
-            if len(cmd.parameters) < command.min_args:
+            if len(cmdline_args.parameters) < command.min_args:
                 print(f"Not enough arguments, need at least {command.min_args}.")
                 continue
-            if len(cmd.parameters) > command.max_args:
+            if len(cmdline_args.parameters) > command.max_args:
                 print(f"Too many arguments, need at most {command.max_args}.")
                 continue
 
             invalid_param = False
             for given_param, expected_param_type in zip(
-                cmd.parameters, command.argument_types
+                cmdline_args.parameters, command.argument_types
             ):
                 if isinstance(given_param, str) and not expected_param_type.is_string:
                     print(
@@ -129,61 +129,99 @@ class ServerThread(threading.Thread):
                     print(
                         f"You must have at most {command.max_selected} selected clients to run this command."
                     )
-                tasks: list[
-                    tuple[str, multiprocessing.Queue, multiprocessing.Process]
-                ] = []
-                for selected_client in selected_clients:
-                    if selected_client not in alive_clients:
-                        print(
-                            f"Client '{selected_client.name}' is dead, skipping.",
-                            flush=True,
-                        )
-                        continue
-                    stdout_queue = multiprocessing.Queue()
-                    proc = multiprocessing.Process(
-                        target=capture_stdout_wrapper,
-                        args=(
-                            stdout_queue,
-                            Client.execute_command,
-                            selected_client,
-                            command,
-                            cmd.parameters,
-                        ),
+                if command.no_new_process:
+                    command_results = self.__handle_no_new_process_command(
+                        cmdline_args, command, selected_clients, alive_clients
                     )
-
-                    proc.start()
-                    tasks.append((selected_client.name, stdout_queue, proc))
-                    if command.no_multitask:
-                        proc.join()
-
-                for client_name, queue, task in tasks:
-                    task.join()
-                    stdout_cap, command_result = queue.get()
-                    print(
-                        f"Completed execution of command on client '{client_name}' (status: ",
-                        flush=True,
-                        end="",
+                else:
+                    command_results = self.__handle_normal_command(
+                        cmdline_args, command, selected_clients, alive_clients
                     )
-                    match command_result.status:
-                        case ExecuteCommandResult.success:
-                            print(colorama.Fore.LIGHTGREEN_EX, end="")
-                        case ExecuteCommandResult.semi_success:
-                            print(colorama.Fore.YELLOW, end="")
-                        case _:
-                            print(colorama.Fore.RED, end="")
-                    print(
-                        f"{command_result.status.name}{colorama.Fore.RESET}):",
-                        flush=True,
-                    )
-                    print(stdout_cap, end="", flush=True)
-                    command_results[client_name] = command_result
             elif isinstance(command, InternalLocalCommand):
-                command.command.local_side(self, tuple(cmd.parameters))
+                command.command.local_side(self, tuple(cmdline_args.parameters))
 
         self.__custom_stdout.destroy()
         self.__acceptor.stop()
         self.__clients.remove_all_clients()
         self.__socket.close()
+
+    @staticmethod
+    def __handle_no_new_process_command(
+        cmdline_args: ParsedCommand,
+        command: InternalDoubleCommand,
+        selected_clients: list[Client],
+        alive_clients: list[Client],
+    ) -> dict[str, CommandResult]:
+        command_results = {}
+        for selected_client in selected_clients:
+            if selected_client not in alive_clients:
+                print(
+                    f"Client '{selected_client.name}' is dead, skipping.",
+                    flush=True,
+                )
+                continue
+            exec_result = selected_client.execute_command(
+                command, cmdline_args.parameters
+            )
+            command_results[selected_client.name] = exec_result
+        return command_results
+
+    @staticmethod
+    def __handle_normal_command(
+        cmdline_args: ParsedCommand,
+        command: InternalDoubleCommand,
+        selected_clients: list[Client],
+        alive_clients: list[Client],
+    ) -> dict[str, CommandResult]:
+        tasks: list[tuple[str, multiprocessing.Queue, multiprocessing.Process]] = []
+        command_results = {}
+        for selected_client in selected_clients:
+            if selected_client not in alive_clients:
+                print(
+                    f"Client '{selected_client.name}' is dead, skipping.",
+                    flush=True,
+                )
+                continue
+            stdout_queue = multiprocessing.Queue()
+            proc = multiprocessing.Process(
+                target=capture_stdout_wrapper,
+                args=(
+                    stdout_queue,
+                    Client.execute_command,
+                    selected_client,
+                    command,
+                    cmdline_args.parameters,
+                ),
+            )
+
+            proc.start()
+            tasks.append((selected_client.name, stdout_queue, proc))
+            if command.no_multitask:
+                proc.join()
+
+        for client_name, queue, task in tasks:
+            task.join()
+            stdout_cap, exec_result = queue.get()
+            print(
+                f"Completed execution of command on client '{client_name}' (status: ",
+                flush=True,
+                end="",
+            )
+            match exec_result.status:
+                case ExecuteCommandResult.success:
+                    print(colorama.Fore.LIGHTGREEN_EX, end="")
+                case ExecuteCommandResult.semi_success:
+                    print(colorama.Fore.YELLOW, end="")
+                case _:
+                    print(colorama.Fore.RED, end="")
+            print(
+                f"{exec_result.status.name}{colorama.Fore.RESET}):",
+                flush=True,
+            )
+            print(stdout_cap, end="", flush=True)
+            command_results[client_name] = exec_result
+
+        return command_results
 
     def stop(self) -> None:
         self.__running = False

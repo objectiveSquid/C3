@@ -114,6 +114,7 @@ class InternalDoubleCommand:
         required_server_modules: Iterable[str] | None = None,
         max_selected: int = -1,
         no_multitask: bool = False,
+        no_new_process: bool = False,
     ) -> None:
         self.__cmd = cmd
         self.__name = name
@@ -125,6 +126,7 @@ class InternalDoubleCommand:
         self.__required_server_modules = required_server_modules or []
         self.__max_selected = max_selected
         self.__no_multitask = no_multitask
+        self.__no_new_process = no_new_process
 
     @property
     def command(self) -> type[DoubleCommand]:
@@ -174,6 +176,10 @@ class InternalDoubleCommand:
     def no_multitask(self) -> bool:
         return self.__no_multitask
 
+    @property
+    def no_new_process(self) -> bool:
+        return self.__no_new_process
+
 
 double_commands: dict[str, InternalDoubleCommand] = {}
 
@@ -188,10 +194,15 @@ def add_double_command(
     required_server_modules: Iterable[str] | None = None,
     max_selected: int = -1,
     no_multitask: bool = False,
+    no_new_process: bool = False,
 ) -> Callable[[type[DoubleCommand]], type[DoubleCommand]]:
     def decorator(cls: type[DoubleCommand]) -> type[DoubleCommand]:
         from server_extras.local_command import local_commands
 
+        if no_new_process and not no_multitask:
+            raise ValueError(
+                "if no_new_process is True, no_multitask must also be True"
+            )
         if len(name) > MAX_COMMAND_NAME_LENGTH:
             raise ValueError(
                 f"name must be less than or equal to {MAX_COMMAND_NAME_LENGTH} characters"
@@ -216,6 +227,7 @@ def add_double_command(
             required_server_modules,
             max_selected,
             no_multitask,
+            no_new_process,
         )
         return cls
 
