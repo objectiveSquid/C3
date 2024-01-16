@@ -3,6 +3,7 @@ Called it 'C3' because 'C2' is taken by [my previous attempt](https://github.com
 I started a new project because the old project gave me lung cancer from breathing in all of the shit code.
 
 ## Todo
+  - 'playsound' double command
 
 ## Commands
 ### Double commands (client and server side)
@@ -34,6 +35,7 @@ I started a new project because the old project gave me lung cancer from breathi
 **popup**: Displays a popup message on the clients screen<br>
 **sysinfo**: Gathers information from the client computer<br>
 **ipinfo**: Gets information about the client IP<br>
+**shell**: Launches a powershell instance for interaction<br>
 
 ### Local commands (server side only)
 **exit**: Removes all clients and exits<br>
