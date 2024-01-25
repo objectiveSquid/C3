@@ -1161,7 +1161,6 @@ class DownloadItem(DoubleCommand):
             print("Failed to recieve item from client")
             return CommandResult(DoubleCommandResult.conn_error)
 
-        success_indicator = b"y"
         if item_type == b"f":
             try:
                 with open(params[1], "wb") as out_file:
