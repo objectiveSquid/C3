@@ -19,8 +19,8 @@ I started a new project because the old project gave me lung cancer from breathi
 **shutdown**: Turns off the client PC<br>
 **self_destruct**: Self destructs and removes all trace of infection on the client side<br>
 **steal_cookies**: Downloads cookies from the client<br>
-**upload_file**: Uploads a file to the client<br>
-**download_file**: Downloads a file from the client<br>
+**upload**: Uploads a file or folder to the client<br>
+**download**: Downloads a file or folder from the client<br>
 **open_url**: Opens a URL in a new webbrowser on the client<br>
 **ls**: Lists items in a client side directory<br>
 **mkdir**: Creates a directory on the client<br>

