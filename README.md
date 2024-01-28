@@ -3,6 +3,7 @@ Called it 'C3' because 'C2' is taken by [my previous attempt](https://github.com
 I started a new project because the old project gave me lung cancer from breathing in all of the shit code.
 
 ## Todo
+  - Fix edge case in `server_extras.server.capture_stdout_wrapper` where it does not end the process after adding command return to queue
 
 ## Commands
 ### Double commands (client and server side)
