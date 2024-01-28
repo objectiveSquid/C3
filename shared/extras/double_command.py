@@ -6,6 +6,7 @@ from shared.extras.command import (
 )
 
 from typing import Iterable, Callable
+import struct
 import socket
 import enum
 import abc
@@ -232,3 +233,62 @@ def add_double_command(
         return cls
 
     return decorator
+
+
+def send_item(sock: socket.socket, item: str | int | float) -> None:
+    if isinstance(item, str):
+        send_string(sock, item)
+    if isinstance(item, int):
+        send_integer(sock, item)
+    if isinstance(item, float):
+        send_float(sock, item)
+    if isinstance(item, bytes):
+        send_bytes(sock, item)
+
+
+def send_string(sock: socket.socket, string: str) -> None:
+    bytes_string = string.encode()
+    sock.sendall(len(bytes_string).to_bytes(8))
+    sock.sendall(bytes_string)
+
+
+def send_bytes(sock: socket.socket, bytes: bytes) -> None:
+    sock.sendall(len(bytes).to_bytes(8))
+    sock.sendall(bytes)
+
+
+def send_integer(sock: socket.socket, integer: int) -> None:
+    sock.sendall(integer.to_bytes(8, signed=True))
+
+
+def send_float(sock: socket.socket, float: float) -> None:
+    sock.sendall(struct.pack("d", float))
+
+
+def recieve_string(sock: socket.socket, ignore_unicode_errors: bool = False) -> str:
+    return recieve_bytes(sock).decode(
+        errors="ignore" if ignore_unicode_errors else "strict"
+    )
+
+
+def recieve_bytes(sock: socket.socket) -> bytes:
+    return sock.recv(int.from_bytes(sock.recv(8)))
+
+
+def recieve_integer(sock: socket.socket) -> int:
+    return int.from_bytes(sock.recv(8), signed=True)
+
+
+def recieve_float(sock: socket.socket) -> float:
+    return struct.unpack("d", sock.recv(8))[0]
+
+
+def recieve_maximum_bytes(sock: socket.socket, chunk_size: int = 1024) -> bytes:
+    temp_bytes = sock.recv(chunk_size)
+    contents = bytearray(temp_bytes)
+
+    while len(temp_bytes) == chunk_size:
+        temp_bytes = sock.recv(chunk_size)
+        contents += temp_bytes
+
+    return bytes(contents)
