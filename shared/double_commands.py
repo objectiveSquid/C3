@@ -1558,7 +1558,7 @@ class Touch(DoubleCommand):
 )
 class ListProcesses(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> EmptyReturn:
+    def client_side(sock: socket.socket) -> None:
         import psutil
 
         for proc in psutil.process_iter(["pid", "name"]):
