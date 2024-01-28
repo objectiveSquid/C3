@@ -144,7 +144,8 @@ class Client:
         else:
             tmp_sock.setblocking(blocking)
         if timeout == None:
-            tmp_sock.settimeout(self.__sock.gettimeout())
+            orig_sock_timeout = self.__sock.gettimeout()
+            tmp_sock.settimeout(5 if orig_sock_timeout == None else orig_sock_timeout)
         else:
             tmp_sock.settimeout(timeout)
         return tmp_sock
