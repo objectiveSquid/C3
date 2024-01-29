@@ -2005,10 +2005,11 @@ class PlaySound(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
         import threading
-        import pyglet
         import os
 
         def play_sound(path: str) -> None:
+            import pyglet
+
             def on_player_eos() -> None:
                 pyglet.app.exit()
 
@@ -2037,7 +2038,7 @@ class PlaySound(DoubleCommand):
 
     @staticmethod
     def server_side(client: Client, params: tuple) -> CommandResult:
-        import os
+        import os.path
 
         def bail(display_msg: str, bail_client: bool) -> None:
             print(display_msg)
