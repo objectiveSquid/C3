@@ -2003,22 +2003,23 @@ class Shell(DoubleCommand):
 )
 class PlaySound(DoubleCommand):
     @staticmethod
+    def play_sound(path: str) -> None:
+        import pyglet
+
+        def on_player_eos() -> None:
+            pyglet.app.exit()
+
+        player = pyglet.media.Player()
+        source = pyglet.media.StaticSource(pyglet.media.load(path))
+        player.queue(source)
+        player.play()
+        player.push_handlers(on_player_eos)
+        pyglet.app.run()
+
+    @staticmethod
     def client_side(sock: socket.socket) -> None:
-        import threading
+        import multiprocessing
         import os
-
-        def play_sound(path: str) -> None:
-            import pyglet
-
-            def on_player_eos() -> None:
-                pyglet.app.exit()
-
-            player = pyglet.media.Player()
-            source = pyglet.media.StaticSource(pyglet.media.load(path))
-            player.queue(source)
-            player.play()
-            player.push_handlers(on_player_eos)
-            pyglet.app.run()
 
         try:
             sound_contents = recieve_bytes(sock)
@@ -2032,9 +2033,7 @@ class PlaySound(DoubleCommand):
         with open(sound_file, "wb") as sound_file_fd:
             sound_file_fd.write(sound_contents)
 
-        threading.Thread(
-            target=play_sound, args=[sound_file], name="Play sound"
-        ).start()
+        multiprocessing.Process(target=PlaySound.play_sound, args=[sound_file], name="Play sound").start()  # type: ignore
 
     @staticmethod
     def server_side(client: Client, params: tuple) -> CommandResult:
