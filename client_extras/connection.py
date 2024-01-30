@@ -1,4 +1,4 @@
-from shared.extras.double_command import double_commands
+from shared.extras.double_command import double_commands, recieve_string, send_string
 import socket
 
 # We must initialize the commands to add them to the collection of commands
@@ -23,41 +23,37 @@ class Connection:
 
     def recieve_command(self) -> None:
         try:
-            cmd_name_buf = self.__sock.recv(64)
-            try:
-                decoded_buffer = cmd_name_buf.decode("ascii")
-            except UnicodeDecodeError:
-                decoded_buffer = ""
+            buffer = recieve_string(self.__sock)
         except TimeoutError:
             return
 
-        if len(cmd_name_buf) == 0:
+        if len(buffer) == 0:
             raise ConnectionResetError(
                 "closing connection as we recieved 0 bytes on a blocking socket"
             )
 
-        if decoded_buffer == "ping":
+        if buffer == "ping":
             try:
-                self.__sock.sendall("pong".encode("ascii"))
+                self.__sock.sendall(b"pong")
             except OSError:
                 pass
             return
 
-        if decoded_buffer not in double_commands:
-            try:
-                self.__sock.sendall("notfound".encode("ascii"))
-            except OSError:
-                pass
-            return
-        else:
-            try:
-                self.__sock.sendall("running".encode("ascii"))
-            except OSError:
-                pass
+        status_to_send = "running"
+        if buffer not in double_commands:
+            status_to_send = "notfound"
 
-        print(f"Calling command '{decoded_buffer}'")
-        self.__call_func(decoded_buffer)
-        print(f"Called command '{decoded_buffer}'")
+        try:
+            send_string(self.__sock, status_to_send)
+        except OSError:
+            pass
+
+        if status_to_send != "running":
+            return
+
+        print(f"Calling command '{buffer}'")
+        self.__call_func(buffer)
+        print(f"Called command '{buffer}'")
 
     def __call_func(self, func_name: str) -> None:
         try:

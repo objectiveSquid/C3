@@ -1,7 +1,7 @@
 from shared.extras.command import MAX_COMMAND_NAME_LENGTH, get_max_args, get_min_args
 from shared.extras.double_command import CommandResult, ArgumentType
 
-from typing import Iterable, Callable
+from typing import Iterable, Callable, Generic, TypeVar
 import enum
 import abc
 
@@ -38,10 +38,13 @@ class LocalCommand(abc.ABC):
         ...
 
 
-class InternalLocalCommand:
+command_class_type = TypeVar("command_class_type", bound=type[LocalCommand])
+
+
+class InternalLocalCommand(Generic[command_class_type]):
     def __init__(
         self,
-        cmd: type[LocalCommand],
+        cmd: command_class_type,
         name: str,
         usage: str,
         description: str,
@@ -54,7 +57,7 @@ class InternalLocalCommand:
         self.__argument_types = argument_types
 
     @property
-    def command(self) -> type[LocalCommand]:
+    def command(self) -> command_class_type:
         return self.__cmd
 
     @property
@@ -85,13 +88,15 @@ class InternalLocalCommand:
 local_commands: dict[str, InternalLocalCommand] = {}
 
 
-def add_local_command(
+def add_local_command[
+    command_class_type
+](
     name: str,
     usage: str,
     description: str,
     argument_types: Iterable[ArgumentType],
-) -> Callable[[type[LocalCommand]], type[LocalCommand]]:
-    def decorator(cls: type[LocalCommand]) -> type[LocalCommand]:
+) -> Callable[[command_class_type], command_class_type]:
+    def decorator(cls: command_class_type) -> command_class_type:
         from shared.extras.double_command import double_commands
 
         if len(name) > MAX_COMMAND_NAME_LENGTH:

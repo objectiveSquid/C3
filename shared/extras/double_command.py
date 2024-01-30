@@ -5,7 +5,7 @@ from shared.extras.command import (
     get_min_args,
 )
 
-from typing import Iterable, Callable
+from typing import Iterable, Callable, Generic, TypeVar
 import struct
 import socket
 import enum
@@ -102,10 +102,13 @@ class DoubleCommand(abc.ABC):
         ...
 
 
-class InternalDoubleCommand:
+command_class_type = TypeVar("command_class_type", bound=type[DoubleCommand])
+
+
+class InternalDoubleCommand(Generic[command_class_type]):
     def __init__(
         self,
-        cmd: type[DoubleCommand],
+        cmd: command_class_type,
         name: str,
         usage: str,
         description: str,
@@ -130,7 +133,7 @@ class InternalDoubleCommand:
         self.__no_new_process = no_new_process
 
     @property
-    def command(self) -> type[DoubleCommand]:
+    def command(self) -> command_class_type:
         return self.__cmd
 
     @property
@@ -185,7 +188,9 @@ class InternalDoubleCommand:
 double_commands: dict[str, InternalDoubleCommand] = {}
 
 
-def add_double_command(
+def add_double_command[
+    command_class_type
+](
     name: str,
     usage: str,
     description: str,
@@ -196,8 +201,8 @@ def add_double_command(
     max_selected: int = -1,
     no_multitask: bool = False,
     no_new_process: bool = False,
-) -> Callable[[type[DoubleCommand]], type[DoubleCommand]]:
-    def decorator(cls: type[DoubleCommand]) -> type[DoubleCommand]:
+) -> Callable[[command_class_type], command_class_type]:
+    def decorator(cls: command_class_type) -> command_class_type:
         from server_extras.local_command import local_commands
 
         if no_new_process and not no_multitask:
@@ -292,3 +297,7 @@ def recieve_maximum_bytes(sock: socket.socket, chunk_size: int = 1024) -> bytes:
         contents += temp_bytes
 
     return bytes(contents)
+
+
+def recieve_last_bytes(sock: socket.socket, bytes_amount: int) -> bytes:
+    return recieve_maximum_bytes(sock)[-bytes_amount:]

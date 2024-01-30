@@ -1,7 +1,10 @@
 from shared.extras.double_command import (
     InternalDoubleCommand,
     DoubleCommandResult,
+    recieve_last_bytes,
+    recieve_string,
     CommandResult,
+    send_string,
 )
 from shared.extras.command import ExecuteCommandResult, CommandResult
 from server_extras.command_parser import CommandToken
@@ -50,14 +53,14 @@ class Client:
         while retries < 3:
             if not sent_cmd:
                 try:
-                    self.__sock.sendall(cmd.name.encode("ascii"))
+                    send_string(self.__sock, cmd.name)
                 except OSError:
                     retries += 1
                     continue
                 sent_cmd = True
                 retries = 0
             try:
-                started = self.__sock.recv(64).decode("ascii")
+                started = recieve_string(self.__sock)
             except (UnicodeDecodeError, OSError):
                 retries += 1
                 continue
@@ -74,7 +77,11 @@ class Client:
                     ret_val.set_status(ExecuteCommandResult.success)
                 case DoubleCommandResult.semi_success:
                     ret_val.set_status(ExecuteCommandResult.semi_success)
-                case DoubleCommandResult.failure | DoubleCommandResult.timeout | DoubleCommandResult.conn_error:
+                case (
+                    DoubleCommandResult.failure
+                    | DoubleCommandResult.timeout
+                    | DoubleCommandResult.conn_error
+                ):
                     ret_val.set_status(ExecuteCommandResult.failure)
             return ret_val
         return CommandResult(ExecuteCommandResult.max_retries_hit)
@@ -91,8 +98,10 @@ class Client:
 
     def ping(self, kill_if_dead: bool = True) -> bool:
         try:
-            self.__sock.sendall("ping".encode("ascii"))
-            is_alive = self.__sock.recv(4).decode("ascii") == "pong"
+            send_string(self.__sock, "ping")
+            is_alive = (
+                recieve_last_bytes(self.__sock, 4) == b"pong"
+            )  # if a command left some unused socket data, we clear it
             self.__alive = is_alive
             if kill_if_dead and not is_alive:
                 self.kill()
