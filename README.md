@@ -6,6 +6,8 @@ Called it 'C3' because 'C2' is taken by [my previous attempt](https://github.com
 I started a new project because the old project gave me lung cancer from breathing in all of the shit code.
 
 ## Todo
+  - Make the server Linux compatible (because I am now on Ubuntu and I don't want to keep using a VM/Wine)
+  - Add options to make a command only suited for certain platforms
 
 ## Commands
 ### Double commands (client and server side)
