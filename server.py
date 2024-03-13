@@ -1,6 +1,6 @@
 import shared.extras.platform as platform
 
-platform.ensure_versions()
+platform.ensure_python_version()
 platform.extend_path()
 from shared.extras.install_modules import install as install_modules
 from server_extras.server import ServerThread

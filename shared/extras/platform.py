@@ -1,27 +1,19 @@
+from typing import NoReturn
 import sys
 
 
-def ensure_versions() -> None:
-    if not all([check_system(), check_py_version()]):
-        sys.exit()
+if sys.version_info < (3, 12):
 
-
-def check_system() -> bool:
-    if sys.platform != "win32":
-        print(
-            f"This program is currently only compatible with Microsoft Windows (win32), it will not work on platform: '{sys.platform}'"
-        )
-        return False
-    return True
-
-
-def check_py_version() -> bool:
-    if sys.version_info < (3, 12):
+    def ensure_python_version() -> NoReturn:
         print(
             f"This program is currently only compatible with Python 3.12 (3.12.X) and after, it will not work on version: '{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}'"
         )
-        return False
-    return True
+        exit()
+
+else:
+
+    def ensure_python_version() -> None:
+        return
 
 
 def extend_path() -> None:

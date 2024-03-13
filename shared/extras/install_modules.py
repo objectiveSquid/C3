@@ -2,16 +2,12 @@ from shared.extras.double_command import double_commands
 
 from typing import Literal
 import subprocess
-import os.path
+import sys
 
 
 def install(target: Literal["server", "client"]):
     print("Installing required modules.")
-    pip_path = "pip"
-    parent_dir = os.path.split(__file__)[0].replace("\\", "/").split("/")[:-2]
-    possible_pip_path = f"{parent_dir}/Scripts/pip.exe"
-    if os.path.isfile(possible_pip_path):
-        pip_path = possible_pip_path
+    pip_path = f"{sys.executable} -m pip"
     installed_modules = []
     install_commands: list[tuple[str, subprocess.Popen]] = []
     for command in double_commands.values():
@@ -31,7 +27,11 @@ def install(target: Literal["server", "client"]):
                         [pip_path, "install", module],
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
-                        creationflags=subprocess.CREATE_NO_WINDOW,
+                        creationflags=(
+                            subprocess.CREATE_NO_WINDOW
+                            if sys.platform == "win32"
+                            else 0
+                        ),
                     ),
                 )
             )
