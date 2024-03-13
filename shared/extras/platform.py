@@ -1,14 +1,15 @@
 import sys
 
 
-def check_versions() -> tuple[bool, bool]:
-    return check_system(), check_py_version()
+def ensure_versions() -> None:
+    if not all([check_system(), check_py_version()]):
+        sys.exit()
 
 
 def check_system() -> bool:
     if sys.platform != "win32":
         print(
-            f"This program is currently only compatible with Microsoft Windows ({sys.platform}), it probably wont work on {sys.platform}."
+            f"This program is currently only compatible with Microsoft Windows (win32), it will not work on platform: '{sys.platform}'"
         )
         return False
     return True
@@ -17,7 +18,7 @@ def check_system() -> bool:
 def check_py_version() -> bool:
     if sys.version_info < (3, 12):
         print(
-            f"This program is currently only compatible with Python 3.12 ({sys.version_info}) and up, you should expect to encounter issues on '{sys.version_info}'."
+            f"This program is currently only compatible with Python 3.12 (3.12.X) and after, it will not work on version: '{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}'"
         )
         return False
     return True
