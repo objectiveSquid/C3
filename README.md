@@ -59,7 +59,7 @@ Double commands should be implemented in the `shared/double_commands.py` file, s
 In an actual double command you would catch potential errors in the `server_side` and return them like this:<br>
 `return CommandResult(DoubleCommandResult.your_error_here)`
 Here is how you can implement a custom double command:<br>
-```py
+```py3
 @add_double_command(
     "my_double_command",
     "Usage [ required argument ] { optional argument }",
@@ -67,8 +67,7 @@ Here is how you can implement a custom double command:<br>
     argument_types=[
         ArgumentType.integer,
         ArgumentType.optional_string,
-    ],
-    return_type=EmptyReturn,
+    ]
 )
 class MyDoubleCommand(DoubleCommand):
     @staticmethod
@@ -89,7 +88,7 @@ Local commands should be implemented in the `server_extras/local_commands.py` fi
 In an actual local command you would catch potential errors in the `local_side` and return them like this:<br>
 `return CommandResult(LocalCommandResult.your_error_here)`
 Here is how you can implement a custom local command:<br>
-```py
+```py3
 @add_local_command(
     "my_local_command",
     "Usage [ required argument ] { optional argument }",
@@ -97,7 +96,7 @@ Here is how you can implement a custom local command:<br>
     argument_types=[
         shared.extras.double_command.ArgumentType.integer,
         shared.extras.double_command.ArgumentType.optional_string,
-    ],
+    ]
 )
 class MyLocalCommand(LocalCommand):
     @staticmethod
