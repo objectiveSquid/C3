@@ -13,7 +13,7 @@ PORT: Final[int] = 7892
 
 
 def main() -> None:
-    install_modules("client")
+    install_modules(client=True)
     conn = Connection(IP, PORT)
     print("Connected to server.")
     while True:

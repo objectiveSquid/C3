@@ -1,21 +1,22 @@
 from shared.extras.double_command import double_commands
 
-from typing import Literal
 import subprocess
 import sys
 
 
-def install(target: Literal["server", "client"]):
+def install(server: bool = False, client: bool = False):
     print("Installing required modules.")
     pip_path = f"{sys.executable} -m pip"
     install_commands = []
+    required_modules = []
     for command_name, command in double_commands.items():
-        if target == "client":
-            required_modules = command.required_client_modules
-        else:
-            required_modules = command.required_server_modules
+        if server:
+            required_modules.append((command_name, command.required_server_modules))
+        if client:
+            required_modules.append((command_name, command.required_client_modules))
 
-        for module in required_modules:
+    for command_name, modules in required_modules:
+        for module in modules:
             install_commands.append(
                 (
                     command_name,
@@ -37,4 +38,4 @@ def install(target: Literal["server", "client"]):
             print(
                 f"Command '{command_name}' depended on '{module}', but it failed to install."
             )
-    print(f"Installed required modules.")
+    print("Installed required modules.")

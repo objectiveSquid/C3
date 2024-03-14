@@ -13,7 +13,7 @@ PORT: Final[int] = 7892
 
 
 def main() -> None:
-    install_modules("server")
+    install_modules(server=True)
     server_thread = ServerThread(IP, PORT)
     server_thread.start()
     try:
