@@ -86,14 +86,25 @@ class Client:
             return ret_val
         return CommandResult(ExecuteCommandResult.max_retries_hit)
 
-    def create_temp_socket(self, blocking: bool, timeout: float) -> socket.socket:
-        warnings.warn(
-            "this function is deprecated, use the .socket property instead",
-            DeprecationWarning,
-        )
+    def create_temp_socket(
+        self, blocking: bool | None = None, timeout: float | None = None
+    ) -> socket.socket:
         tmp_sock = self.__sock.dup()
-        tmp_sock.setblocking(blocking)
-        tmp_sock.settimeout(timeout)
+
+        if blocking == None:
+            tmp_sock.setblocking(self.__sock.getblocking())
+        else:
+            tmp_sock.setblocking(blocking)
+        if timeout == None:
+            orig_sock_timeout = self.__sock.gettimeout()
+            tmp_sock.settimeout(5 if orig_sock_timeout == None else orig_sock_timeout)
+        else:
+            tmp_sock.settimeout(timeout)
+
+        if blocking != None:
+            tmp_sock.setblocking(blocking)
+        if timeout != None:
+            tmp_sock.settimeout(timeout)
         return tmp_sock
 
     def ping(self, kill_if_dead: bool = True) -> bool:
@@ -144,20 +155,8 @@ class Client:
         return not self.__alive
 
     @property
-    def socket(
-        self, blocking: bool | None = None, timeout: float | None = None
-    ) -> socket.socket:
-        tmp_sock = self.__sock.dup()
-        if blocking == None:
-            tmp_sock.setblocking(self.__sock.getblocking())
-        else:
-            tmp_sock.setblocking(blocking)
-        if timeout == None:
-            orig_sock_timeout = self.__sock.gettimeout()
-            tmp_sock.settimeout(5 if orig_sock_timeout == None else orig_sock_timeout)
-        else:
-            tmp_sock.settimeout(timeout)
-        return tmp_sock
+    def socket(self) -> socket.socket:
+        return self.__sock
 
     @property
     def name(self) -> str:
@@ -270,7 +269,7 @@ class ClientBucket:
         return output
 
     @staticmethod
-    def __callable_with_args(obj: Any, num_args: int, return_val: type = Any):
+    def __callable_with_args(obj: Any, num_args: int, return_val: type = type[Any]):
         if callable(obj):
             sig = inspect.signature(obj)
             sig_params = sig.parameters
