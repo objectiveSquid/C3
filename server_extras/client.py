@@ -12,7 +12,6 @@ from server_extras.custom_io import CustomStdout
 
 import concurrent.futures as futures
 from typing import Callable, Any
-import warnings
 import inspect
 import random
 import socket
