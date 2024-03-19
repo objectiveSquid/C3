@@ -1,6 +1,17 @@
+from shared.extras.command import AnyInternalCommand
+
 import shlex
+import enum
+
 
 type CommandToken = str | int | float
+
+
+class ValidateCommandResult(enum.Enum):
+    valid = 0
+    too_few_args = 1
+    too_many_args = 2
+    invalid_type = 3
 
 
 class ParsedCommand:
@@ -15,6 +26,24 @@ class ParsedCommand:
         # command name invalid
         if not isinstance(self.__tokens[0], str) or len(self.__tokens[0]) == 0:
             self.__invalid = True
+
+    def validate(self, command: AnyInternalCommand) -> ValidateCommandResult:
+        if len(self.__tokens) < command.min_args:
+            return ValidateCommandResult.too_few_args
+        if len(self.__tokens) > command.max_args:
+            return ValidateCommandResult.too_many_args
+
+        for given_param, expected_param_type in zip(
+            self.__tokens, command.argument_types
+        ):
+            if isinstance(given_param, str) and not expected_param_type.is_string:
+                return ValidateCommandResult.invalid_type
+            elif isinstance(given_param, int) and not expected_param_type.is_integer:
+                return ValidateCommandResult.invalid_type
+            elif isinstance(given_param, float) and not expected_param_type.is_float:
+                return ValidateCommandResult.invalid_type
+
+        return ValidateCommandResult.valid
 
     @property
     def command_name(self) -> str:

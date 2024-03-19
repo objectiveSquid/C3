@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from shared.extras.command import MAX_COMMAND_NAME_LENGTH, get_max_args, get_min_args
 from shared.extras.double_command import CommandResult, ArgumentType
 
@@ -20,7 +22,7 @@ class LocalCommandResult(enum.Enum):
 class LocalCommand(abc.ABC):
     @staticmethod
     @abc.abstractmethod
-    def local_side(server_thread: "ServerThread", params: tuple) -> CommandResult:
+    def local_side(server_thread: ServerThread, params: tuple) -> CommandResult:
         """
         This method will be run on the server side, and must handle exceptions, timeouts and invalid parameters by itself.\n
         This method should return a `CommandResult` instance.\n

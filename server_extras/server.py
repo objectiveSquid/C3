@@ -1,12 +1,12 @@
 from shared.extras.double_command import InternalDoubleCommand, double_commands
 from server_extras.local_command import InternalLocalCommand, local_commands
-from shared.extras.command import ExecuteCommandResult, CommandResult
+from server_extras.custom_io import StdoutCapturingProcess, CustomStdout
 from server_extras.command_parser import ParsedCommand, parse_command
+from shared.extras.command import ExecuteCommandResult, CommandResult
 from server_extras.server_acceptor import ServerAcceptorThread
 from server_extras.client import ClientBucket, Client
-from server_extras.custom_io import CustomStdout
 
-from typing import Callable, Any
+from typing import Callable, Literal, Any
 import multiprocessing
 import threading
 import colorama
@@ -49,7 +49,9 @@ class ServerThread(threading.Thread):
         self.__socket.settimeout(5)
         self.__custom_stdout = CustomStdout()
         self.__clients = ClientBucket(self.__custom_stdout)
-        self.__acceptor = ServerAcceptorThread(self.__socket, self.__clients)
+        self.__acceptor = ServerAcceptorThread(
+            self.__socket, self.__clients, self.__custom_stdout
+        )
 
     def run(self) -> None:
         self.__bind_sock()
@@ -114,29 +116,35 @@ class ServerThread(threading.Thread):
                 continue
 
             if isinstance(command, InternalDoubleCommand):
-                command_results: dict[str, CommandResult] = {}
-                selected_clients = self.__clients.get_selected_clients()
-                alive_clients = self.__clients.get_alive_clients()
-                if len(selected_clients) == 0:
-                    print(
-                        f"No selected clients, you can select a client with `select [client_name]`"
-                    )
-                    continue
-                if (
-                    command.max_selected < len(self.clients.get_selected_clients())
-                    and command.max_selected > 0
+                command_outputs: dict[str, CommandResult] = {}
+                self.__prepare_and_start_double_command(
+                    command.name, cmdline_args, command_outputs
+                )
+
+                old_stdout = self.__custom_stdout.contents
+                while any(
+                    [output.status == None for output in command_outputs.values()]
                 ):
-                    print(
-                        f"You must have at most {command.max_selected} selected clients to run this command."
-                    )
-                if command.no_new_process:
-                    command_results = self.__handle_no_new_process_command(
-                        cmdline_args, command, selected_clients, alive_clients
-                    )
-                else:
-                    command_results = self.__handle_normal_command(
-                        cmdline_args, command, selected_clients, alive_clients
-                    )
+                    self.__custom_stdout.clear_lines()
+                    print(old_stdout, end="")
+                    for client_name, output in command_outputs.items():
+                        if output.status == None:
+                            print(f"Executing command on client '{client_name}'")
+                        else:
+                            print(
+                                f"Completed execution of command on client '{client_name}' (status: ",
+                                end="",
+                            )
+                            match output.status:
+                                case ExecuteCommandResult.success:
+                                    print(colorama.Fore.LIGHTGREEN_EX, end="")
+                                case ExecuteCommandResult.semi_success:
+                                    print(colorama.Fore.YELLOW, end="")
+                                case _:
+                                    print(colorama.Fore.RED, end="")
+                            print(f"{output.status.name}{colorama.Fore.RESET}):")
+                        print(output.process_handle.stdout, end="", flush=True)  # type: ignore
+
             elif isinstance(command, InternalLocalCommand):
                 command.command.local_side(self, tuple(cmdline_args.parameters))
 
@@ -145,83 +153,77 @@ class ServerThread(threading.Thread):
         self.__clients.remove_all_clients()
         self.__socket.close()
 
-    @staticmethod
-    def __handle_no_new_process_command(
-        cmdline_args: ParsedCommand,
-        command: InternalDoubleCommand,
-        selected_clients: list[Client],
-        alive_clients: list[Client],
-    ) -> dict[str, CommandResult]:
-        command_results = {}
-        for selected_client in selected_clients:
-            if selected_client not in alive_clients:
-                print(
-                    f"Client '{selected_client.name}' is dead, skipping.",
-                    flush=True,
-                )
-                continue
-            exec_result = selected_client.execute_command(
-                command, cmdline_args.parameters
+    def __prepare_and_start_double_command(
+        self,
+        command_name: str,
+        arguments: ParsedCommand,
+        outputs: dict[str, CommandResult],
+    ) -> tuple[
+        Literal["no_clients", "too_many_clients", "command_not_found", "started"],
+        list[str],
+    ]:
+        try:
+            command = double_commands[command_name]
+        except KeyError:
+            return "command_not_found", []
+
+        selected_clients = self.__clients.get_selected_clients()
+        alive_clients = self.__clients.get_alive_clients()
+
+        if len(selected_clients) == 0:
+            print(  # TODO: Move to CLI
+                f"No selected clients, you can select a client with `select [client_name]`"
             )
-            command_results[selected_client.name] = exec_result
-        return command_results
+            return "no_clients", []
+        if command.max_selected < len(selected_clients) and command.max_selected > 0:
+            print(  # TODO: Move to CLI
+                f"You must have at most {command.max_selected} selected clients to run this command."
+            )
+            return "too_many_clients", []
+
+        skipped_clients = self.__start_double_command(
+            arguments, command, selected_clients, alive_clients, outputs
+        )
+        return "started", skipped_clients
 
     @staticmethod
-    def __handle_normal_command(
+    def __start_double_command(
         cmdline_args: ParsedCommand,
         command: InternalDoubleCommand,
         selected_clients: list[Client],
         alive_clients: list[Client],
-    ) -> dict[str, CommandResult]:
-        tasks: list[tuple[str, multiprocessing.Queue, multiprocessing.Process]] = []
-        command_results = {}
+        outputs: dict[str, CommandResult],
+    ) -> list[str]:
+        skipped_clients = []
         for selected_client in selected_clients:
             if selected_client not in alive_clients:
                 print(
                     f"Client '{selected_client.name}' is dead, skipping.",
                     flush=True,
+                )  # TODO: Move to CLI
+            if selected_client.os_type not in command.supported_os:
+                print(
+                    f"Client '{selected_client.name}'s OS type isn't supported by the command, skipping."
                 )
+                skipped_clients.append(selected_client.name)
                 continue
-            stdout_queue = multiprocessing.Queue()
-            proc = multiprocessing.Process(
-                target=capture_stdout_wrapper,
-                args=(
-                    stdout_queue,
-                    Client.execute_command,
+            command_output = CommandResult()
+
+            outputs[selected_client.name] = command_output
+            proc = StdoutCapturingProcess(
+                target=Client.execute_command,
+                args=[
                     selected_client,
                     command,
                     cmdline_args.parameters,
-                ),
+                    command_output,
+                ],
             )
 
             proc.start()
-            tasks.append((selected_client.name, stdout_queue, proc))
-            if command.no_multitask:
-                proc.join()
+            outputs[selected_client.name].set_process_handle(proc)
 
-        for client_name, queue, task in tasks:
-            task.join()
-            stdout_cap, exec_result = queue.get()
-            print(
-                f"Completed execution of command on client '{client_name}' (status: ",
-                flush=True,
-                end="",
-            )
-            match exec_result.status:
-                case ExecuteCommandResult.success:
-                    print(colorama.Fore.LIGHTGREEN_EX, end="")
-                case ExecuteCommandResult.semi_success:
-                    print(colorama.Fore.YELLOW, end="")
-                case _:
-                    print(colorama.Fore.RED, end="")
-            print(
-                f"{exec_result.status.name}{colorama.Fore.RESET}):",
-                flush=True,
-            )
-            print(stdout_cap, end="", flush=True)
-            command_results[client_name] = exec_result
-
-        return command_results
+        return skipped_clients
 
     def stop(self) -> None:
         self.__running = False

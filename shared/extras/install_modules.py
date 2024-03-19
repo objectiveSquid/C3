@@ -6,7 +6,6 @@ import sys
 
 def install(server: bool = False, client: bool = False):
     print("Installing required modules.")
-    pip_path = f"{sys.executable} -m pip"
     install_commands = []
     required_modules = []
     for command_name, command in double_commands.items():
@@ -22,7 +21,7 @@ def install(server: bool = False, client: bool = False):
                     command_name,
                     module,
                     subprocess.Popen(
-                        [pip_path, "install", module],
+                        [sys.executable, "-m", "pip", "install", module],
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                         creationflags=(

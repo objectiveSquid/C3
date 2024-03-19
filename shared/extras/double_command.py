@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from shared.extras.command import (
     MAX_COMMAND_NAME_LENGTH,
     CommandResult,
@@ -5,7 +7,7 @@ from shared.extras.command import (
     get_min_args,
 )
 
-from typing import Iterable, Callable, Generic, TypeVar
+from typing import Iterable, Callable, Literal, Generic, TypeVar
 import struct
 import socket
 import enum
@@ -52,6 +54,30 @@ class ArgumentType(enum.Enum):
         return "unknown"
 
 
+class OSType(enum.Enum):
+    linux = 0
+    mac_os = 1
+    ms_windows = 2
+
+    @property
+    def pretty(self) -> str:
+        return OS_TYPE_TO_PRETTY_LOOKUP[self]
+
+
+PLATFORM_TO_OS_TYPE_LOOKUP = {
+    "linux": OSType.linux,
+    "win32": OSType.ms_windows,
+    "darwin": OSType.mac_os,
+}
+
+
+OS_TYPE_TO_PRETTY_LOOKUP = {
+    OSType.linux: "Linux",
+    OSType.ms_windows: "MS Windows",
+    OSType.mac_os: "MacOS",
+}
+
+
 class DoubleCommandResult(enum.Enum):
     success = 0
     semi_success = 1
@@ -80,7 +106,7 @@ class DoubleCommand(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def server_side(client: "Client", params: tuple) -> CommandResult:
+    def server_side(client: Client, params: tuple) -> CommandResult:
         """This method will be run on the server side, and must handle exceptions, timeouts and invalid parameters by itself.\n
         This method should return a `CommandResult` instance.\n
         If this method fails, it should print why before returning.
@@ -110,9 +136,10 @@ class InternalDoubleCommand(Generic[command_class_type]):
         usage: str,
         description: str,
         argument_types: Iterable[ArgumentType],
-        return_type: type,
+        return_type: type = type[None],
         required_client_modules: Iterable[str] | None = None,
         required_server_modules: Iterable[str] | None = None,
+        supported_os: list[OSType] | Literal["all"] = "all",
         max_selected: int = -1,
         no_multitask: bool = False,
         no_new_process: bool = False,
@@ -125,6 +152,7 @@ class InternalDoubleCommand(Generic[command_class_type]):
         self.__return_type = return_type
         self.__required_client_modules = required_client_modules or []
         self.__required_server_modules = required_server_modules or []
+        self.__supported_os = list(OSType) if supported_os == "all" else supported_os
         self.__max_selected = max_selected
         self.__no_multitask = no_multitask
         self.__no_new_process = no_new_process
@@ -170,6 +198,10 @@ class InternalDoubleCommand(Generic[command_class_type]):
         return self.__required_server_modules
 
     @property
+    def supported_os(self) -> list[OSType]:
+        return self.__supported_os
+
+    @property
     def max_selected(self) -> int:
         return self.__max_selected
 
@@ -195,6 +227,7 @@ def add_double_command[
     return_type: type = type[None],
     required_client_modules: Iterable[str] | None = None,
     required_server_modules: Iterable[str] | None = None,
+    supported_os: list[OSType] | Literal["all"] = "all",
     max_selected: int = -1,
     no_multitask: bool = False,
     no_new_process: bool = False,
@@ -228,6 +261,7 @@ def add_double_command[
             return_type,
             required_client_modules,
             required_server_modules,
+            supported_os,
             max_selected,
             no_multitask,
             no_new_process,
@@ -267,6 +301,13 @@ def send_float(sock: socket.socket, float: float) -> None:
     sock.sendall(struct.pack("d", float))
 
 
+def send_boolean(sock: socket.socket, boolean: bool) -> None:
+    if boolean:
+        sock.sendall(b"\xFF")
+    else:
+        sock.sendall(b"\x00")
+
+
 def recieve_string(sock: socket.socket, ignore_unicode_errors: bool = False) -> str:
     return recieve_bytes(sock).decode(
         errors="ignore" if ignore_unicode_errors else "strict"
@@ -283,6 +324,10 @@ def recieve_integer(sock: socket.socket) -> int:
 
 def recieve_float(sock: socket.socket) -> float:
     return struct.unpack("d", sock.recv(8))[0]
+
+
+def recieve_boolean(sock: socket.socket) -> bool:
+    return sock.recv(1) == b"\xFF"
 
 
 def recieve_maximum_bytes(sock: socket.socket, chunk_size: int = 1024) -> bytes:

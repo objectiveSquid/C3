@@ -5,6 +5,7 @@ from shared.extras.double_command import (
     recieve_string,
     CommandResult,
     send_string,
+    OSType,
 )
 from shared.extras.command import ExecuteCommandResult, CommandResult
 from server_extras.command_parser import CommandToken
@@ -24,6 +25,7 @@ class Client:
         client_socket: socket.socket,
         client_ip: str,
         client_port: int,
+        os_type: OSType,
         name: str | None = None,
     ) -> None:
         self.__sock = client_socket
@@ -32,6 +34,7 @@ class Client:
 
         self.__ip = client_ip
         self.__port = client_port
+        self.__os = os_type
         self.__selected = False
         self.__alive = True
         if isinstance(name, str):
@@ -45,7 +48,8 @@ class Client:
         self,
         cmd: InternalDoubleCommand,
         params: list[CommandToken],
-    ) -> CommandResult:
+        output: CommandResult,
+    ) -> None:
         self.__sock.setblocking(True)
         retries = 0
         sent_cmd = False
@@ -64,26 +68,29 @@ class Client:
                 retries += 1
                 continue
             match started:
-                case "notfound":
-                    return CommandResult(ExecuteCommandResult.not_found)
                 case "running":
                     pass
+                case "notfound":
+                    output.set_status(ExecuteCommandResult.not_found)
+                    return
                 case _:
-                    return CommandResult(ExecuteCommandResult.failure)
+                    output.set_status(ExecuteCommandResult.failure)
+                    return
             ret_val = cmd.command.server_side(self, tuple(params))
             match ret_val.status:
                 case DoubleCommandResult.success:
-                    ret_val.set_status(ExecuteCommandResult.success)
+                    output.set_status(ExecuteCommandResult.success)
                 case DoubleCommandResult.semi_success:
-                    ret_val.set_status(ExecuteCommandResult.semi_success)
+                    output.set_status(ExecuteCommandResult.semi_success)
                 case (
                     DoubleCommandResult.failure
                     | DoubleCommandResult.timeout
                     | DoubleCommandResult.conn_error
+                    | DoubleCommandResult.param_error
                 ):
-                    ret_val.set_status(ExecuteCommandResult.failure)
-            return ret_val
-        return CommandResult(ExecuteCommandResult.max_retries_hit)
+                    output.set_status(ExecuteCommandResult.failure)
+            return
+        output.set_status(ExecuteCommandResult.max_retries_hit)
 
     def create_temp_socket(
         self, blocking: bool | None = None, timeout: float | None = None
@@ -165,6 +172,10 @@ class Client:
     def is_selected(self) -> bool:
         return self.__selected
 
+    @property
+    def os_type(self) -> OSType:
+        return self.__os
+
 
 class RenameClientResult(enum.Enum):
     success = 0
@@ -178,6 +189,7 @@ class ClientBucket:
         self,
         custom_stdout: CustomStdout,
         on_new_connect: Callable[[Client], None] | None = None,
+        on_reconnect: Callable[[Client], None] | None = None,
     ) -> None:
         self.__clients: list[Client] = []
         self.__new_clients: list[Client] = []
@@ -185,18 +197,33 @@ class ClientBucket:
         self.__on_new_connect = None
         if self.__callable_with_args(on_new_connect, 1):
             self.__on_new_connect = on_new_connect
+        self.__on_reconnect = None
+        if self.__callable_with_args(on_reconnect, 1):
+            self.__on_reconnect = on_new_connect
 
     def add(self, new_client: Client) -> None:
+        reconnect = new_client.name.casefold() in self.casefolded_client_names
         self.__clients.append(new_client)
-        self.__new_clients.append(new_client)
-        if self.__on_new_connect == None:
-            self.__custom_stdout.push_line_print(
-                f"New connection from {new_client.ip}:{new_client.port} ({new_client.name})"
-            )
-            return
+        if not reconnect:
+            self.__new_clients.append(new_client)
+            if self.__on_new_connect == None:
+                self.__custom_stdout.push_line_print(
+                    f"New connection from {new_client.ip}:{new_client.port} ({new_client.name})"
+                )
+            else:
+                self.__on_new_connect(new_client)
         else:
-            self.__on_new_connect(new_client)
-            return
+            self.__clients[
+                list(self.casefolded_client_names).index(
+                    new_client.name.casefold()
+                )  # i am wizard
+            ] = new_client
+            if self.__on_reconnect == None:
+                self.__custom_stdout.push_line_print(
+                    f"Client '{new_client.name}' reconnected from '{new_client.ip}:{new_client.port}'"
+                )
+            else:
+                self.__on_reconnect(new_client)
 
     def kill_all_clients(self) -> None:
         for client in self.__clients:
@@ -289,6 +316,14 @@ class ClientBucket:
     @property
     def client_list(self) -> list[Client]:
         return self.__clients
+
+    @property
+    def client_names(self) -> list[str]:
+        return list(map(lambda client: client.name, self.__clients))
+
+    @property
+    def casefolded_client_names(self) -> list[str]:
+        return list(map(lambda client: client.name.casefold(), self.__clients))
 
     def __len__(self) -> int:
         return len(self.__clients)

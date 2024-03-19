@@ -1,5 +1,15 @@
-from shared.extras.double_command import double_commands, recieve_string, send_string
+from shared.extras.double_command import (
+    PLATFORM_TO_OS_TYPE_LOOKUP,
+    double_commands,
+    recieve_string,
+    send_boolean,
+    send_integer,
+    send_string,
+)
+
 import socket
+import time
+import sys
 
 # We must initialize the commands to add them to the collection of commands
 import shared.double_commands as _
@@ -8,18 +18,33 @@ del _
 
 
 class Connection:
-    def __init__(self, remote_ip: str, remote_port: int) -> None:
+    def __init__(
+        self, remote_ip: str, remote_port: int, name: str | None = None
+    ) -> None:
         self.__sock = socket.socket()
         self.__sock.setblocking(True)
         self.__sock.settimeout(5)
-        self.connect(remote_ip, remote_port)
+        self.connect(remote_ip, remote_port, name)
 
-    def connect(self, ip: str, port: int) -> None:
+    def connect(self, ip: str, port: int, name: str | None = None) -> None:
         try:
             self.__sock.connect((ip, port))
         except OSError:
             print("Failed to connect, retrying...")
+            time.sleep(0.1)
             self.connect(ip, port)
+
+        if isinstance(name, str):
+            send_boolean(self.__sock, True)
+            send_string(self.__sock, name)
+        else:
+            send_boolean(self.__sock, False)
+
+        os_type = PLATFORM_TO_OS_TYPE_LOOKUP.get(sys.platform)
+        if os_type == None:
+            print(f"OS type not recognized ('{sys.platform}' not in lookup table)")
+            return
+        send_integer(self.__sock, os_type.value)
 
     def recieve_command(self) -> None:
         try:
