@@ -6,7 +6,7 @@ Called it 'C3' because 'C2' is taken by [my previous attempt](https://github.com
 I started a new project because the old project gave me lung cancer from breathing in all of the shit code.
 
 ## Todo
-  - Add Linux compatability to 'shell' and 'popup' commands
+  - Add Linux compatability to 'shell' command
 
 ## Commands
 ### Double commands (client and server side)

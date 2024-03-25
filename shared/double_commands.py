@@ -1731,28 +1731,52 @@ class GetClipboard(DoubleCommand):
 
 @add_double_command(
     "popup",
-    "popup [ title ] [ message ]",
+    "popup [ title ] [ message ] { level }",
     "Displays a popup message on the clients screen",
-    [ArgumentType.string, ArgumentType.string],
-    supported_os=[OSType.ms_windows]
+    [ArgumentType.string, ArgumentType.string, ArgumentType.optional_string]
 )
 class Popup(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
         import threading
-        import ctypes
+
+        def message_box(title: str, message: str, level: str) -> None:
+            import tkinter.messagebox
+            import tkinter
+
+            root = tkinter.Tk()
+            root.withdraw()
+
+            match level.casefold():
+                case "info":
+                    tkinter.messagebox.showinfo(title, message)
+                case "warning":
+                    tkinter.messagebox.showwarning(title, message)
+                case "error":
+                    tkinter.messagebox.showerror(title, message)
+
+            root.destroy()
+
+        try:
+            cancel = recieve_boolean(sock)
+        except OSError:
+            return
+        
+        if cancel:
+            return
 
         try:
             title = recieve_string(sock, True)
             message = recieve_string(sock, True)
+            level = recieve_string(sock, True)
         except OSError:
             return
 
         fail = False
         try:
             threading.Thread(
-                target=ctypes.windll.user32.MessageBoxW,
-                args=[0, message, title, 0x40],
+                target=message_box,
+                args=[title, message, level],
                 name="Popup",
             ).start()
         except Exception:
@@ -1765,9 +1789,17 @@ class Popup(DoubleCommand):
 
     @staticmethod
     def server_side(client: Client, params: tuple) -> CommandResult:
+        if len(params) == 3 and params[2].casefold() not in ("info", "warning", "error"):
+            try:
+                send_boolean(client.socket, True)
+            except OSError:
+                pass
+            return CommandResult(DoubleCommandResult.param_error)
+
         try:
             send_string(client.socket, params[0])
             send_string(client.socket, params[1])
+            send_string(client.socket, params[2])
         except OSError:
             print("Failed to send message to client")
             return CommandResult(DoubleCommandResult.conn_error)
