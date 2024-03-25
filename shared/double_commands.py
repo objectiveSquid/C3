@@ -647,17 +647,18 @@ class AddPersistence(DoubleCommand):
     "reboot { delay seconds }",
     "Reboots the client PC",
     [ArgumentType.optional_float],
+    required_client_modules=["rebooter"]
 )
 class Reboot(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
-        import subprocess
         import threading
+        import rebooter
         import time
 
         def delayed_reboot(delay: float) -> None:
             time.sleep(delay)
-            subprocess.Popen(["shutdown", "/f", "/r", "/t", "0"])
+            rebooter.Rebooter(operation="reboot")
 
         try:
             threading.Thread(
@@ -691,17 +692,18 @@ class Reboot(DoubleCommand):
     "shutdown { delay seconds }",
     "Turns off the client PC",
     [ArgumentType.optional_float],
+    required_client_modules=["rebooter"]
 )
 class Shutdown(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
-        import subprocess
         import threading
+        import rebooter
         import time
 
         def delayed_shutdown(delay: float) -> None:
             time.sleep(delay)
-            subprocess.Popen(["shutdown", "/f", "/s", "/t", "0"])
+            rebooter.Rebooter(operation="shutdown")
 
         try:
             threading.Thread(
