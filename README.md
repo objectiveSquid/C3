@@ -7,6 +7,7 @@ I started a new project because the old project gave me lung cancer from breathi
 
 ## Todo
   - Add Linux compatability to 'shell' command
+  - Re-add no_new_process and no_multitask functionality
 
 ## Commands
 ### Double commands (client and server side)
