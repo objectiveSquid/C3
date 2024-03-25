@@ -1,7 +1,12 @@
+from server_extras.command_parser import (
+    ValidateCommandResult,
+    CommandParser,
+    ParsedCommand,
+    parse_command,
+)
 from shared.extras.double_command import InternalDoubleCommand, double_commands
 from server_extras.local_command import InternalLocalCommand, local_commands
 from server_extras.custom_io import StdoutCapturingProcess, CustomStdout
-from server_extras.command_parser import ParsedCommand, parse_command
 from shared.extras.command import ExecuteCommandResult, CommandResult
 from server_extras.server_acceptor import ServerAcceptorThread
 from server_extras.client import ClientBucket, Client
@@ -69,56 +74,43 @@ class ServerThread(threading.Thread):
                     continue
                 exit_cmd.command.local_side(self, ())
                 continue
-            if len(command_line) == 0:
+            if len(command_line.strip()) == 0:
                 continue
-            cmdline_args = parse_command(command_line)
-            if cmdline_args.is_invalid:
-                print("Invalid command supplied.")
+
+            remainder, command_name = CommandParser.try_parse_string(command_line)
+            if command_name == None:
+                print("Invalid command name.")
                 continue
-            command_name = cmdline_args.command_name
             command = double_commands.get(command_name) or local_commands.get(
                 command_name
             )
             if command == None:
                 print(f"Command '{command_name}' doesn't exist.")
                 continue
-            if len(cmdline_args.parameters) < command.min_args:
-                print(f"Not enough arguments, need at least {command.min_args}.")
-                continue
-            if len(cmdline_args.parameters) > command.max_args:
-                print(f"Too many arguments, need at most {command.max_args}.")
-                continue
+            cmdline = parse_command(command_line, command)
 
-            invalid_param = False
-            for given_param, expected_param_type in zip(
-                cmdline_args.parameters, command.argument_types
-            ):
-                if isinstance(given_param, str) and not expected_param_type.is_string:
+            match cmdline.validate(command):
+                case ValidateCommandResult.no_tokens | ValidateCommandResult.cant_parse:
+                    print("Could not parse command.")
+                    continue
+                case ValidateCommandResult.invalid_type:
+                    print("Invalid argument type supplied.")
+                    continue
+                case ValidateCommandResult.too_few_args:
                     print(
-                        f"Argument '{given_param}' of type string should be: {expected_param_type}"
+                        f"Not enough arguments supplied, use {command.min_args} argument(s) at least."
                     )
-                    invalid_param = True
-                elif (
-                    isinstance(given_param, int) and not expected_param_type.is_integer
-                ):
+                    continue
+                case ValidateCommandResult.too_many_args:
                     print(
-                        f"Argument '{given_param}' of type integer should be: {expected_param_type}"
+                        f"Too many arguments supplied, use {command.max_args} argument(s) at most."
                     )
-                    invalid_param = True
-                elif (
-                    isinstance(given_param, float) and not expected_param_type.is_float
-                ):
-                    print(
-                        f"Argument '{given_param}' of type float should be: {expected_param_type}"
-                    )
-                    invalid_param = True
-            if invalid_param:
-                continue
+                    continue
 
             if isinstance(command, InternalDoubleCommand):
                 command_outputs: dict[str, CommandResult] = {}
                 self.__prepare_and_start_double_command(
-                    command.name, cmdline_args, command_outputs
+                    command.name, cmdline, command_outputs
                 )
 
                 old_stdout = self.__custom_stdout.contents
@@ -146,7 +138,7 @@ class ServerThread(threading.Thread):
                         print(output.process_handle.stdout, end="", flush=True)  # type: ignore
 
             elif isinstance(command, InternalLocalCommand):
-                command.command.local_side(self, tuple(cmdline_args.parameters))
+                command.command.local_side(self, tuple(cmdline.parameters))
 
         self.__custom_stdout.destroy()
         self.__acceptor.stop()
@@ -171,12 +163,12 @@ class ServerThread(threading.Thread):
         alive_clients = self.__clients.get_alive_clients()
 
         if len(selected_clients) == 0:
-            print(  # TODO: Move to CLI
+            print(
                 f"No selected clients, you can select a client with `select [client_name]`"
             )
             return "no_clients", []
         if command.max_selected < len(selected_clients) and command.max_selected > 0:
-            print(  # TODO: Move to CLI
+            print(
                 f"You must have at most {command.max_selected} selected clients to run this command."
             )
             return "too_many_clients", []
@@ -197,10 +189,7 @@ class ServerThread(threading.Thread):
         skipped_clients = []
         for selected_client in selected_clients:
             if selected_client not in alive_clients:
-                print(
-                    f"Client '{selected_client.name}' is dead, skipping.",
-                    flush=True,
-                )  # TODO: Move to CLI
+                print(f"Client '{selected_client.name}' is dead, skipping.", flush=True)
             if selected_client.os_type not in command.supported_os:
                 print(
                     f"Client '{selected_client.name}'s OS type isn't supported by the command, skipping."

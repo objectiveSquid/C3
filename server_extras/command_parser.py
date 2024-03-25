@@ -1,6 +1,5 @@
 from shared.extras.command import AnyInternalCommand
 
-import shlex
 import enum
 
 
@@ -12,29 +11,30 @@ class ValidateCommandResult(enum.Enum):
     too_few_args = 1
     too_many_args = 2
     invalid_type = 3
+    cant_parse = 4
+    no_tokens = 5
 
 
 class ParsedCommand:
-    def __init__(self, tokens: list[CommandToken] = [], invalid: bool = False) -> None:
-        self.__invalid = invalid
-        self.__tokens = tokens
-
-        # no tokens
-        if len(self.__tokens) == 0:
-            self.__invalid = True
-            return
-        # command name invalid
-        if not isinstance(self.__tokens[0], str) or len(self.__tokens[0]) == 0:
-            self.__invalid = True
+    def __init__(
+        self,
+        tokens: list[CommandToken] | None = None,
+        validity: ValidateCommandResult | None = None,
+    ) -> None:
+        self.__tokens = [] if tokens == None else tokens
+        self.__validity = validity
 
     def validate(self, command: AnyInternalCommand) -> ValidateCommandResult:
-        if len(self.__tokens) < command.min_args:
+        if isinstance(self.__validity, ValidateCommandResult):
+            return self.__validity
+
+        if len(self.parameters) < command.min_args:
             return ValidateCommandResult.too_few_args
-        if len(self.__tokens) > command.max_args:
+        if len(self.parameters) > command.max_args:
             return ValidateCommandResult.too_many_args
 
         for given_param, expected_param_type in zip(
-            self.__tokens, command.argument_types
+            self.parameters, command.argument_types
         ):
             if isinstance(given_param, str) and not expected_param_type.is_string:
                 return ValidateCommandResult.invalid_type
@@ -47,9 +47,10 @@ class ParsedCommand:
 
     @property
     def command_name(self) -> str:
-        if self.__invalid:
+        try:
+            return str(self.__tokens[0])
+        except IndexError:
             return ""
-        return str(self.__tokens[0])
 
     @property
     def parameters(self) -> list[CommandToken]:
@@ -58,14 +59,6 @@ class ParsedCommand:
     @property
     def tokens(self) -> list[CommandToken]:
         return self.__tokens
-
-    @property
-    def is_valid(self) -> bool:
-        return not self.__invalid
-
-    @property
-    def is_invalid(self) -> bool:
-        return self.__invalid
 
 
 class CommandParser:
@@ -92,6 +85,65 @@ class CommandParser:
     def add_token(self, token: CommandToken) -> None:
         self.__tokens.append(token)
 
+    @staticmethod
+    def try_parse_float(chars: str) -> tuple[str, float | None]:
+        parser = CommandParser(chars)
+        output = ""
+        while (
+            parser.has_more_chars
+            and parser.peek().isdigit()
+            or (parser.peek() in ".-" and len(parser.peek()) > 0)
+        ):
+            output += parser.consume()
+
+        try:
+            output = float(output)
+        except ValueError:
+            return chars, None
+
+        return parser.rest, output
+
+    @staticmethod
+    def try_parse_integer(chars: str) -> tuple[str, int | None]:
+        parser = CommandParser(chars)
+        output = ""
+        while parser.has_more_chars and parser.peek().isdigit() or parser.peek() == "-":
+            output += parser.consume()
+
+        try:
+            output = int(output)
+        except ValueError:
+            return chars, None
+
+        return parser.rest, output
+
+    @staticmethod
+    def try_parse_string(chars: str) -> tuple[str, str | None]:
+        parser = CommandParser(chars)
+        output = ""
+        escaped = False
+        start_char = parser.consume()
+        if start_char not in "'\"":
+            output += start_char
+
+        while parser.has_more_chars and not (
+            start_char not in "'\"" and parser.peek() == " "
+        ):
+            if escaped:
+                output += parser.consume()
+                escaped = False
+                continue
+            if parser.peek() == start_char and start_char in "'\"":
+                parser.consume()
+                break
+            if parser.peek() == "\\":
+                parser.consume()
+                escaped = True
+                continue
+            output += parser.consume()
+
+        return parser.rest, output
+
     @property
     def tokens(self) -> list[CommandToken]:
         return self.__tokens
@@ -99,6 +151,10 @@ class CommandParser:
     @property
     def has_more_chars(self) -> bool:
         return self.__progress < len(self.__command_line)
+
+    @property
+    def rest(self) -> str:
+        return self.peek(len(self.__command_line) - self.__progress, through=True)
 
     @property
     def is_done(self) -> bool:
@@ -109,30 +165,48 @@ class CommandParser:
         return self.__progress
 
 
-def parse_command(command_line: str) -> ParsedCommand:
+def parse_command(command_line: str, command: AnyInternalCommand) -> ParsedCommand:
     tokens = []
-    items = shlex.split(command_line, posix=True)
-    for item in items:
-        if item.isdecimal():
-            tokens.append(int(item))
+    first_token = True
+    parser = CommandParser(command_line)
+
+    while parser.has_more_chars:
+        if parser.peek().isspace():
+            parser.consume()
             continue
-        try:
-            float(item)
-            tokens.append(float(item))
-        except ValueError:
-            tokens.append(item)
-    escaped_tokens = []
-    for token in tokens:
-        if not isinstance(token, str):
-            escaped_tokens.append(token)
+
+        integer_rest, integer_arg = CommandParser.try_parse_integer(parser.rest)
+        float_rest, float_arg = CommandParser.try_parse_float(parser.rest)
+        string_rest, string_arg = CommandParser.try_parse_string(parser.rest)
+
+        if (float_arg, integer_arg, string_arg) == (None, None, None):
+            return ParsedCommand(validity=ValidateCommandResult.cant_parse)
+
+        current_target_type = list(command.argument_types)[len(tokens) - 1]
+
+        if first_token:
+            if not string_arg:
+                return ParsedCommand(validity=ValidateCommandResult.invalid_type)
+            parser = CommandParser(string_rest)
+            tokens.append(string_arg)
+            first_token = False
             continue
-        try:
-            if "'" in token:
-                escaped_tokens.append(eval(f'"{token}"'))
-            elif '"' in token:
-                escaped_tokens.append(eval(f"'{token}'"))
-            else:
-                escaped_tokens.append(token)
-        except SyntaxError:
-            return ParsedCommand(invalid=True)
-    return ParsedCommand(escaped_tokens)
+
+        if current_target_type.is_float:
+            if float_arg == None:
+                return ParsedCommand(validity=ValidateCommandResult.invalid_type)
+            parser = CommandParser(float_rest)
+            tokens.append(float_arg)
+        if current_target_type.is_integer:
+            if integer_arg == None:
+                return ParsedCommand(validity=ValidateCommandResult.invalid_type)
+            parser = CommandParser(integer_rest)
+            tokens.append(integer_arg)
+        if current_target_type.is_string:
+            if string_arg == None:
+                return ParsedCommand(validity=ValidateCommandResult.invalid_type)
+            parser = CommandParser(string_rest)
+            tokens.append(string_arg)
+
+    parsed = ParsedCommand(tokens)
+    return parsed
