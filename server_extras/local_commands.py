@@ -49,17 +49,16 @@ class ExitShell(LocalCommand):
 class ListClients(LocalCommand):
     @staticmethod
     def local_side(server_thread: ServerThread, params: tuple) -> CommandResult:
-        if len(params) == 0:
-            print(f"You have {len(server_thread.clients)} total clients:")
-            for client in server_thread.clients.client_list:
-                print(f"{client.name} -> {client.ip}:{client.port}")
-            return CommandResult(LocalCommandResult.success)
-
         def print_clients(clients: list[Client]) -> None:
             for client in clients:
                 print(
                     f"{client.name} ({client.os_type.pretty}) -> {client.ip}:{client.port}"
                 )
+
+        if len(params) == 0:
+            print(f"You have {len(server_thread.clients)} total clients:")
+            print_clients(server_thread.clients.client_list)
+            return CommandResult(LocalCommandResult.success)
 
         match params[0]:
             case "new":
