@@ -56,14 +56,6 @@ class CustomStdout:
             raise Exception("you have already destroyed this CustomStdout object")
 
 
-class QueueWriter:
-    def __init__(self, queue: multiprocessing.Queue) -> None:
-        self.__queue = queue
-
-    def write(self, __s: str) -> None:
-        self.__queue.put(__s)
-
-
 class StdoutCapturingProcess(multiprocessing.Process):
     def __init__(
         self,
@@ -90,6 +82,13 @@ class StdoutCapturingProcess(multiprocessing.Process):
         self.__capture = ""
 
     def run(self) -> None:
+        class QueueWriter:
+            def __init__(self, queue: multiprocessing.Queue) -> None:
+                self.__queue = queue
+
+            def write(self, __s: str) -> None:
+                self.__queue.put(__s)
+
         sys.stdout = QueueWriter(self.__queue)
 
         err = None
