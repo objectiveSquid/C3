@@ -3,30 +3,31 @@ import shared.extras.platform as platform
 platform.ensure_python_version()
 platform.extend_path()
 from shared.extras.install_modules import install as install_modules
+from shared.extras.arguments import validate_arguments
 from server_extras.server import ServerThread
 
-from typing import Final
 import argparse
 
 
-IP: Final[str] = "127.0.0.1"
-PORT: Final[int] = 7890
-
-
 def main() -> None:
-    arg_parser = argparse.ArgumentParser()
+    arg_parser = argparse.ArgumentParser(prog="C3 Server")
     arg_parser.add_argument(
         "-i",
         "--install_requirements",
-        help="Reconnect with specific username",
+        help="Install (double command) server requirements",
         action="store_true",
     )
+    arg_parser.add_argument("listen_address")
+    arg_parser.add_argument("listen_port", type=int)
     args = arg_parser.parse_args()
 
     if args.install_requirements:
         install_modules(server=True)
 
-    server_thread = ServerThread(IP, PORT)
+    if not validate_arguments(args.listen_address, args.listen_port, try_bind=True):
+        return
+
+    server_thread = ServerThread(args.listen_address, args.listen_port)
     server_thread.start()
     try:
         server_thread.join()
