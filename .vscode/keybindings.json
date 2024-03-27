@@ -1,0 +1,8 @@
+// These keybindings should be copied into your keybindings file for VSCode
+[
+    {
+        "key": "alt+a",
+        "command": "workbench.action.tasks.runTask",
+        "args": "connectClientToLocal"
+    }
+]
