@@ -1224,7 +1224,7 @@ class OpenURL(DoubleCommand):
 
 @add_double_command(
     "ls",
-    "ls [ directory ]",
+    "ls { directory }",
     "Lists a directory on the client",
     [ArgumentType.optional_string],
 )
