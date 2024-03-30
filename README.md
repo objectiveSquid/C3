@@ -42,7 +42,7 @@ I started a new project because the old project gave me lung cancer from breathi
 **shell**: Launches a powershell instance for interaction<br>
 **playsound**: Plays a local sound file on the client<br>
 
-### Local commands (server side only)
+### Local commands (no client custom client code)
 **exit**: Removes all clients and exits<br>
 **list_clients**: Lists your infected clients<br>
 **remove_client**: Kills and removes a client<br>
