@@ -52,6 +52,7 @@ class ServerThread(threading.Thread):
         self.__socket = socket.socket()
         self.__socket.setblocking(True)
         self.__socket.settimeout(5)
+        self.__socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.__custom_stdout = CustomStdout()
         self.__clients = ClientBucket(self.__custom_stdout)
         self.__acceptor = ServerAcceptorThread(

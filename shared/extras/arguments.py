@@ -14,6 +14,7 @@ def validate_arguments(address: str, port: int, try_bind: bool = False) -> bool:
         ipaddress.ip_address(address)
         if try_bind:
             with socket.socket() as temp_sock:
+                temp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 temp_sock.bind((address, port))
     except ValueError:
         print(f"Invalid address ({address}) provided")
