@@ -1237,17 +1237,33 @@ class ListDirectory(DoubleCommand):
             path = recieve_string(sock, True)
         except OSError:
             return
+        
+        get_items_status = b"y"
+        try:
+            dir_items = os.listdir(path)
+        except FileNotFoundError:
+            get_items_status = b"f"
+        except OSError:
+            get_items_status = b"n"
+        
+        try:
+            sock.sendall(get_items_status)
+        except OSError:
+            return
+        
+        if get_items_status != b"y":
+            return
 
         items = []
-        for item in os.listdir(path):
+        for item in dir_items:
             abs_item = f"{path}/{item}"
             if os.path.isdir(abs_item):
                 items.append(f"<DIR>  -> {item}")
             elif os.path.isfile(abs_item):
                 items.append(f"<FILE> -> {item}")
-        output = "\n".join(items).encode()
+        output = "\n".join(items)
         try:
-            send_bytes(sock, output)
+            send_string(sock, output)
         except OSError:
             return
 
@@ -1261,7 +1277,23 @@ class ListDirectory(DoubleCommand):
         except OSError:
             print("Failed to send path to client")
             return CommandResult(DoubleCommandResult.conn_error)
-
+        
+        try:
+            get_items_status = client.socket.recv(1)
+        except OSError:
+            print("Sent directory but client did not repond with a success indicator")
+            return CommandResult(DoubleCommandResult.conn_error)
+        
+        match get_items_status:
+            case b"y":
+                pass
+            case b"f":
+                print("Client could not find directory")
+                return CommandResult(DoubleCommandResult.failure)
+            case b"n":
+                print("Client could not read directory")
+                return CommandResult(DoubleCommandResult.failure)
+        
         try:
             contents = recieve_string(client.socket, True)
             print(contents)
