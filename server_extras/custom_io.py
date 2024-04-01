@@ -47,9 +47,9 @@ class CustomStdout:
         return self.__stdout.getvalue()
 
     @property
-    def lines(self, keep_ends: bool = False) -> list[str]:
+    def lines(self) -> list[str]:
         self.__check_destroyed()
-        return self.__stdout.getvalue().splitlines(keepends=keep_ends)
+        return self.__stdout.getvalue().splitlines()
 
     def __check_destroyed(self) -> None:
         if self.__destroyed:
