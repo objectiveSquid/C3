@@ -42,7 +42,7 @@ I started a new project because the old project gave me lung cancer from breathi
 **shell**: Launches a powershell instance for interaction<br>
 **playsound**: Plays a local sound file on the client<br>
 
-### Local commands (server side only)
+### Local commands (no custom client client code)
 **exit**: Removes all clients and exits<br>
 **list_clients**: Lists your infected clients<br>
 **remove_client**: Kills and removes a client<br>
@@ -81,7 +81,7 @@ class MyDoubleCommand(DoubleCommand):
         if len(params) == 2:
             client.socket.sendall(f"(optional) String argument (2): {params[1]}\n".encode())
 
-        return CommandResult(LocalCommandResult.success)
+        return CommandResult(DoubleCommandResult.success)
 ```
 ### Local commands
 Local commands should be implemented in the `server_extras/local_commands.py` file, since the required imports for creating a local command is already imported.
@@ -94,8 +94,8 @@ Here is how you can implement a custom local command:<br>
     "Usage [ required argument ] { optional argument }",
     "A cool local command!",
     argument_types=[
-        shared.extras.double_command.ArgumentType.integer,
-        shared.extras.double_command.ArgumentType.optional_string,
+        ArgumentType.integer,
+        ArgumentType.optional_string,
     ]
 )
 class MyLocalCommand(LocalCommand):
