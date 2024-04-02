@@ -110,32 +110,37 @@ class ServerThread(threading.Thread):
 
             if isinstance(command, InternalDoubleCommand):
                 command_outputs: dict[str, CommandResult] = {}
-                self.__prepare_and_start_double_command(
+                started, skipped_clients = self.__prepare_and_start_double_command(
                     command.name, cmdline, command_outputs
                 )
 
-                old_stdout = self.__custom_stdout.contents
+                if started != "success":
+                    continue
+
+                if (
+                    command.no_new_process
+                ):  # the command handler will handle the command output
+                    continue
+
+                old_line_count = len(self.__custom_stdout.lines)
+                is_first_run = True
                 while any(
                     [output.status == None for output in command_outputs.values()]
                 ):
-                    self.__custom_stdout.clear_lines()
-                    print(old_stdout, end="")
+                    self.__custom_stdout.clear_lines(
+                        (len(self.__custom_stdout.lines) - old_line_count)
+                        + (0 if is_first_run else 1)
+                    )
+                    is_first_run = False
+                    old_line_count = len(self.__custom_stdout.lines)
                     for client_name, output in command_outputs.items():
                         if output.status == None:
-                            print(f"Executing command on client '{client_name}'")
+                            print(f"Executing command on client '{client_name}':")
                         else:
+                            # TODO: Fix this abomination (1)
                             print(
-                                f"Completed execution of command on client '{client_name}' (status: ",
-                                end="",
+                                f"Completed execution of command on client '{client_name}' (status: {colorama.Fore.LIGHTGREEN_EX if output.status == ExecuteCommandResult.success else (colorama.Fore.YELLOW if output.status == ExecuteCommandResult.semi_success else colorama.Fore.RED)}{output.status.name}{colorama.Fore.RESET}):"
                             )
-                            match output.status:
-                                case ExecuteCommandResult.success:
-                                    print(colorama.Fore.LIGHTGREEN_EX, end="")
-                                case ExecuteCommandResult.semi_success:
-                                    print(colorama.Fore.YELLOW, end="")
-                                case _:
-                                    print(colorama.Fore.RED, end="")
-                            print(f"{output.status.name}{colorama.Fore.RESET}):")
                         print(output.process_handle.stdout, end="", flush=True)  # type: ignore
 
             elif isinstance(command, InternalLocalCommand):
@@ -152,7 +157,7 @@ class ServerThread(threading.Thread):
         arguments: ParsedCommand,
         outputs: dict[str, CommandResult],
     ) -> tuple[
-        Literal["no_clients", "too_many_clients", "command_not_found", "started"],
+        Literal["no_clients", "too_many_clients", "command_not_found", "success"],
         list[str],
     ]:
         try:
@@ -174,10 +179,52 @@ class ServerThread(threading.Thread):
             )
             return "too_many_clients", []
 
-        skipped_clients = self.__start_double_command(
-            arguments, command, selected_clients, alive_clients, outputs
-        )
-        return "started", skipped_clients
+        if command.no_new_process:
+            skipped_clients = self.__run_double_command(
+                arguments, command, selected_clients, alive_clients, outputs
+            )
+        else:
+            skipped_clients = self.__start_double_command(
+                arguments, command, selected_clients, alive_clients, outputs
+            )
+        return "success", skipped_clients
+
+    def __run_double_command(
+        self,
+        cmdline_args: ParsedCommand,
+        command: InternalDoubleCommand,
+        selected_clients: list[Client],
+        alive_clients: list[Client],
+        outputs: dict[str, CommandResult],
+    ) -> list[str]:
+        skipped_clients = []
+        for selected_client in selected_clients:
+            if selected_client not in alive_clients:
+                print(f"Client '{selected_client.name}' is dead, skipping.", flush=True)
+            if selected_client.os_type not in command.supported_os:
+                print(
+                    f"Client '{selected_client.name}'s OS type isn't supported by the command, skipping."
+                )
+                skipped_clients.append(selected_client.name)
+                continue
+
+            command_output = CommandResult()
+
+            outputs[selected_client.name] = command_output
+
+        for selected_client, output in zip(selected_clients, outputs.values()):
+            print(f"Executing command on client '{selected_client.name}':")
+            old_line_count = len(self.__custom_stdout.lines)
+            selected_client.execute_command(command, cmdline_args.parameters, output)
+            new_line_count = len(self.__custom_stdout.lines)
+
+            # TODO: Fix this abomination (2)
+            self.__custom_stdout.print_to_earlier_line(
+                (new_line_count - old_line_count) + 1,
+                f"Completed execution of command on client '{selected_client.name}' (status: {colorama.Fore.LIGHTGREEN_EX if output.status == ExecuteCommandResult.success else (colorama.Fore.YELLOW if output.status == ExecuteCommandResult.semi_success else colorama.Fore.RED)}{output.status.name}{colorama.Fore.RESET}):",  # type: ignore
+            )
+
+        return skipped_clients
 
     @staticmethod
     def __start_double_command(
@@ -197,11 +244,13 @@ class ServerThread(threading.Thread):
                 )
                 skipped_clients.append(selected_client.name)
                 continue
+
             command_output = CommandResult()
 
             outputs[selected_client.name] = command_output
             proc = StdoutCapturingProcess(
                 target=Client.execute_command,
+                no_new_process=command.no_new_process,
                 args=[
                     selected_client,
                     command,
@@ -210,8 +259,12 @@ class ServerThread(threading.Thread):
                 ],
             )
 
-            proc.start()
             outputs[selected_client.name].set_process_handle(proc)
+
+        for output in outputs.values():
+            output.process_handle.start()  # type: ignore
+            if command.no_multitask:
+                output.process_handle.join()  # type: ignore
 
         return skipped_clients
 
