@@ -182,7 +182,8 @@ def parse_command(command_line: str, command: AnyInternalCommand) -> ParsedComma
         if (float_arg, integer_arg, string_arg) == (None, None, None):
             return ParsedCommand(validity=ValidateCommandResult.cant_parse)
 
-        current_target_type = list(command.argument_types)[len(tokens) - 1]
+        if not first_token:
+            current_target_type = list(command.argument_types)[len(tokens) - 1]
 
         if first_token:
             if not string_arg:
