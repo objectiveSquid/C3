@@ -1956,7 +1956,6 @@ class Geolocate(DoubleCommand):
         return CommandResult(DoubleCommandResult.success, info.all)
 
 
-# TODO: Make it multi os
 @add_double_command(
     "shell",
     "shell",
@@ -1997,7 +1996,7 @@ class Shell(DoubleCommand):
                     sock.send(process.stdout.read(1))  # type: ignore
                 except OSError:
                     return
-                
+
         try:
             if not recieve_boolean(sock):
                 return
