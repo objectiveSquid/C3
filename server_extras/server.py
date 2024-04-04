@@ -6,7 +6,7 @@ from server_extras.command_parser import (
 )
 from shared.extras.double_command import InternalDoubleCommand, double_commands
 from server_extras.local_command import InternalLocalCommand, local_commands
-from server_extras.custom_io import StdoutCapturingProcess, CustomStdout
+from shared.extras.custom_io import StdoutCapturingProcess, CustomStdout
 from shared.extras.command import ExecuteCommandResult, CommandResult
 from server_extras.server_acceptor import ServerAcceptorThread
 from server_extras.client import ClientBucket, Client
@@ -250,7 +250,6 @@ class ServerThread(threading.Thread):
             outputs[selected_client.name] = command_output
             proc = StdoutCapturingProcess(
                 target=Client.execute_command,
-                no_new_process=command.no_new_process,
                 args=[
                     selected_client,
                     command,

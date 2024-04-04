@@ -4,7 +4,7 @@ from shared.extras.double_command import (
     recieve_string,
 )
 from server_extras.client import ClientBucket, Client
-from server_extras.custom_io import CustomStdout
+from shared.extras.custom_io import CustomStdout
 from shared.extras.double_command import OSType
 
 import threading

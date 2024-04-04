@@ -9,7 +9,7 @@ from shared.extras.double_command import (
 )
 from shared.extras.command import ExecuteCommandResult, CommandResult
 from server_extras.command_parser import CommandToken
-from server_extras.custom_io import CustomStdout
+from shared.extras.custom_io import CustomStdout
 
 import concurrent.futures as futures
 from typing import Callable, Any

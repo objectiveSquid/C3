@@ -1,5 +1,8 @@
 from typing import Iterable, Callable, Mapping, TextIO, Any
 import multiprocessing
+import tempfile
+import os.path
+import random
 import queue
 import sys
 import io
@@ -123,3 +126,21 @@ class StdoutCapturingProcess(multiprocessing.Process):
             except queue.Empty:
                 break
         return self.__stdout_capture
+
+
+def temp_filepath(ext: str = "") -> str:
+    path = (
+        tempfile.gettempdir()
+        + "/"
+        + "".join(
+            random.choices(
+                "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890_",
+                k=8,
+            )
+        )
+        + ext
+    )
+
+    if os.path.exists(path):
+        return temp_filepath(ext)
+    return path

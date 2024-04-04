@@ -1,8 +1,6 @@
-from server_extras.custom_io import StdoutCapturingProcess
+from shared.extras.custom_io import StdoutCapturingProcess, temp_filepath
 
 from typing import Iterable, Any
-import tempfile
-import random
 import pickle
 import enum
 import time
@@ -41,29 +39,8 @@ class CommandResult:
         ret_value: Any = None,
         process_handle: StdoutCapturingProcess | None = None,
     ) -> None:
-        # TODO: Make this more readable
-        self.__status_file = (
-            tempfile.gettempdir()
-            + "/"
-            + "".join(
-                random.choices(
-                    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
-                    k=8,
-                )
-            )
-            + ".pkl"
-        )
-        self.__lock_file = (
-            tempfile.gettempdir()
-            + "/"
-            + "".join(
-                random.choices(
-                    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890",
-                    k=8,
-                )
-            )
-            + ".lock"
-        )
+        self.__status_file = temp_filepath(".pkl")
+        self.__lock_file = temp_filepath(".lock")
         if status != None:
             self.set_status(status)
         self.__ret_value = ret_value
