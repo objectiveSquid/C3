@@ -9,6 +9,7 @@ from server_extras.local_command import InternalLocalCommand, local_commands
 from shared.extras.custom_io import StdoutCapturingProcess, CustomStdout
 from shared.extras.command import ExecuteCommandResult, CommandResult
 from server_extras.server_acceptor import ServerAcceptorThread
+from server_extras.formatting import generate_command_execute_message
 from server_extras.client import ClientBucket, Client
 
 from typing import Callable, Literal, Any
@@ -134,13 +135,9 @@ class ServerThread(threading.Thread):
                     is_first_run = False
                     old_line_count = len(self.__custom_stdout.lines)
                     for client_name, output in command_outputs.items():
-                        if output.status == None:
-                            print(f"Executing command on client '{client_name}':")
-                        else:
-                            # TODO: Fix this abomination (1)
-                            print(
-                                f"Completed execution of command on client '{client_name}' (status: {colorama.Fore.LIGHTGREEN_EX if output.status == ExecuteCommandResult.success else (colorama.Fore.YELLOW if output.status == ExecuteCommandResult.semi_success else colorama.Fore.RED)}{output.status.name}{colorama.Fore.RESET}):"
-                            )
+                        print(
+                            generate_command_execute_message(output.status, client_name)  # type: ignore
+                        )
                         print(output.process_handle.stdout, end="", flush=True)  # type: ignore
 
             elif isinstance(command, InternalLocalCommand):
@@ -218,10 +215,13 @@ class ServerThread(threading.Thread):
             selected_client.execute_command(command, cmdline_args.parameters, output)
             new_line_count = len(self.__custom_stdout.lines)
 
-            # TODO: Fix this abomination (2)
             self.__custom_stdout.print_to_earlier_line(
                 (new_line_count - old_line_count) + 1,
-                f"Completed execution of command on client '{selected_client.name}' (status: {colorama.Fore.LIGHTGREEN_EX if output.status == ExecuteCommandResult.success else (colorama.Fore.YELLOW if output.status == ExecuteCommandResult.semi_success else colorama.Fore.RED)}{output.status.name}{colorama.Fore.RESET}):",  # type: ignore
+                print(
+                    generate_command_execute_message(
+                        output.status, selected_client.name  # type: ignore
+                    )
+                ),
             )
 
         return skipped_clients
