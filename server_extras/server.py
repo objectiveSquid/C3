@@ -217,10 +217,8 @@ class ServerThread(threading.Thread):
 
             self.__custom_stdout.print_to_earlier_line(
                 (new_line_count - old_line_count) + 1,
-                print(
                 generate_command_execute_message(
                     output.status, selected_client.name  # type: ignore
-                    )
                 ),
             )
 

