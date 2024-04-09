@@ -144,23 +144,32 @@ class ClearScreen(LocalCommand):
 
 @add_local_command(
     "select",
-    "select [ client name ]",
+    "select { client name }",
     "Selects a client for command execution",
-    [ArgumentType.string],
+    [ArgumentType.optional_string],
 )
 class SelectClient(LocalCommand):
     @staticmethod
     def local_side(server_thread: ServerThread, params: tuple) -> CommandResult:
-        select_result = server_thread.clients.select_client(params[0])
-        match select_result[0]:
+        if len(params) == 0:
+            print("No name given, selecting all new clients")
+            for client in server_thread.clients.get_new_clients(clear=False):
+                client.set_selected(True)
+                print(f"Selected '{client.name}'")
+            return CommandResult(LocalCommandResult.success)
+
+        select_result, actual_client_name = server_thread.clients.select_client(
+            params[0]
+        )
+        match select_result:
             case 0:
                 print(f"Client '{params[0]}' not found.")
                 return CommandResult(LocalCommandResult.param_error)
             case 1:
-                print(f"Selected '{select_result[1]}'")
+                print(f"Selected '{actual_client_name}'")
                 return CommandResult(LocalCommandResult.success)
             case 2:
-                print(f"Client '{select_result[1]}' already selected.")
+                print(f"Client '{actual_client_name}' already selected.")
                 return CommandResult(LocalCommandResult.success)
             case _:
                 print(f"Unknown error.")
@@ -176,16 +185,18 @@ class SelectClient(LocalCommand):
 class DeselectClient(LocalCommand):
     @staticmethod
     def local_side(server_thread: ServerThread, params: tuple) -> CommandResult:
-        deselect_result = server_thread.clients.deselect_client(params[0])
-        match deselect_result[0]:
+        deselect_result, actual_client_name = server_thread.clients.deselect_client(
+            params[0]
+        )
+        match deselect_result:
             case 0:
                 print(f"Client '{params[0]}' not found.")
                 return CommandResult(LocalCommandResult.param_error)
             case 1:
-                print(f"Deselected '{deselect_result[1]}'")
+                print(f"Deselected '{actual_client_name}'")
                 return CommandResult(LocalCommandResult.success)
             case 2:
-                print(f"Client '{deselect_result[1]}' isn't selected.")
+                print(f"Client '{actual_client_name}' isn't selected.")
                 return CommandResult(LocalCommandResult.success)
             case _:
                 print(f"Unknown error.")
