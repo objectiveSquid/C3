@@ -125,9 +125,11 @@ class ServerThread(threading.Thread):
 
                 old_line_count = len(self.__custom_stdout.lines)
                 is_first_run = True
-                while any(
-                    [output.status == None for output in command_outputs.values()]
-                ):
+                last_run = False
+                all_done = all(
+                    [output.status != None for output in command_outputs.values()]
+                )
+                while last_run or (not all_done):
                     self.__custom_stdout.clear_lines(
                         (len(self.__custom_stdout.lines) - old_line_count)
                         + (0 if is_first_run else 1)
@@ -139,6 +141,14 @@ class ServerThread(threading.Thread):
                             generate_command_execute_message(output.status, client_name)  # type: ignore
                         )
                         print(output.process_handle.stdout, end="", flush=True)  # type: ignore
+
+                    if last_run:
+                        break
+                    all_done = all(
+                        [output.status != None for output in command_outputs.values()]
+                    )
+                    if all_done:
+                        last_run = True
 
             elif isinstance(command, InternalLocalCommand):
                 command.command.local_side(self, tuple(cmdline.parameters))
