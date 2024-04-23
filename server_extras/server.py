@@ -124,7 +124,7 @@ class ServerThread(threading.Thread):
                     continue
 
                 old_line_count = len(self.__custom_stdout.lines)
-                is_first_run = True
+                first_run = True
                 last_run = False
                 all_done = all(
                     [output.status != None for output in command_outputs.values()]
@@ -132,9 +132,9 @@ class ServerThread(threading.Thread):
                 while last_run or (not all_done):
                     self.__custom_stdout.clear_lines(
                         (len(self.__custom_stdout.lines) - old_line_count)
-                        + (0 if is_first_run else 1)
+                        + (0 if first_run else 1)
                     )
-                    is_first_run = False
+                    first_run = False
                     old_line_count = len(self.__custom_stdout.lines)
                     for client_name, output in command_outputs.items():
                         print(
