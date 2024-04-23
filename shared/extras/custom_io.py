@@ -4,6 +4,7 @@ import tempfile
 import os.path
 import random
 import queue
+import time
 import sys
 import io
 
@@ -128,7 +129,39 @@ class StdoutCapturingProcess(multiprocessing.Process):
         return self.__stdout_capture
 
 
-def temp_filepath(ext: str = "") -> str:
+class FileLock:
+    def __init__(self) -> None:
+        self.__lock_file = temp_filepath(".lock", create=True)
+        with open(self.__lock_file, "wb") as lock_fd:
+            lock_fd.write(b"\x00")
+
+    def __wait_for_release(self) -> float:
+        start_time = time.time()
+
+        with open(self.__lock_file, "rb") as lock_fd:
+            while True:
+                if lock_fd.read(1):
+                    break
+                lock_fd.seek(0)
+                time.sleep(0.05)
+
+        return time.time() - start_time
+
+    def acquire(self) -> float:
+        time_wait = self.__wait_for_release()
+
+        self.__set_lock_file_value(b"\xFF")
+        return time_wait
+
+    def release(self) -> None:
+        self.__set_lock_file_value(b"\x00")
+
+    def __set_lock_file_value(self, value: bytes) -> None:
+        with open(self.__lock_file, "wb") as lock_fd:
+            lock_fd.write(value)
+
+
+def temp_filepath(ext: str = "", create: bool = False) -> str:
     path = (
         tempfile.gettempdir()
         + "/"
@@ -143,4 +176,7 @@ def temp_filepath(ext: str = "") -> str:
 
     if os.path.exists(path):
         return temp_filepath(ext)
+
+    if create:
+        open(path, "w").close()
     return path

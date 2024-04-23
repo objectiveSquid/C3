@@ -1,3 +1,4 @@
+from shared.extras.encrypted_socket import EncryptedSocket
 from shared.extras.double_command import (
     PLATFORM_TO_OS_TYPE_LOOKUP,
     double_commands,
@@ -7,7 +8,6 @@ from shared.extras.double_command import (
     send_string,
 )
 
-import socket
 import time
 import sys
 
@@ -21,7 +21,7 @@ class Connection:
     def __init__(
         self, remote_ip: str, remote_port: int, name: str | None = None
     ) -> None:
-        self.__sock = socket.socket()
+        self.__sock = EncryptedSocket()
         self.__sock.setblocking(True)
         self.__sock.settimeout(5)
         self.connect(remote_ip, remote_port, name)
@@ -32,7 +32,15 @@ class Connection:
         except OSError:
             print("Failed to connect, retrying...")
             time.sleep(0.1)
-            self.connect(ip, port)
+            self.connect(ip, port, name)
+            return
+
+        try:
+            self.__sock.initialize_encryption()
+        except OSError:
+            print("Connected to server but failed to initialize encryption")
+            self.connect(ip, port, name)
+            return
 
         if isinstance(name, str):
             send_boolean(self.__sock, True)
@@ -87,16 +95,5 @@ class Connection:
             print(f"{err.__class__} thrown: {err}")
 
     @property
-    def socket(
-        self, blocking: bool | None = None, timeout: float | None = None
-    ) -> socket.socket:
-        tmp_sock = self.__sock.dup()
-        if blocking == None:
-            tmp_sock.setblocking(self.__sock.getblocking())
-        else:
-            tmp_sock.setblocking(blocking)
-        if timeout == None:
-            tmp_sock.settimeout(self.__sock.gettimeout())
-        else:
-            tmp_sock.settimeout(timeout)
-        return tmp_sock
+    def socket(self) -> EncryptedSocket:
+        return self.__sock

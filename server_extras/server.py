@@ -7,15 +7,15 @@ from server_extras.command_parser import (
 from shared.extras.double_command import InternalDoubleCommand, double_commands
 from server_extras.local_command import InternalLocalCommand, local_commands
 from shared.extras.custom_io import StdoutCapturingProcess, CustomStdout
-from shared.extras.command import ExecuteCommandResult, CommandResult
 from server_extras.server_acceptor import ServerAcceptorThread
 from server_extras.formatting import generate_command_execute_message
+from shared.extras.encrypted_socket import EncryptedSocket
 from server_extras.client import ClientBucket, Client
+from shared.extras.command import CommandResult
 
 from typing import Callable, Literal, Any
 import multiprocessing
 import threading
-import colorama
 import socket
 
 # We must initialize the commands to add them to the collection of commands
@@ -50,7 +50,7 @@ class ServerThread(threading.Thread):
         self.__port = port
 
         self.__running = True
-        self.__socket = socket.socket()
+        self.__socket = EncryptedSocket()
         self.__socket.setblocking(True)
         self.__socket.settimeout(5)
         self.__socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -282,7 +282,7 @@ class ServerThread(threading.Thread):
         return self.__custom_stdout
 
     @property
-    def socket(self) -> socket.socket:
+    def socket(self) -> EncryptedSocket:
         return self.__socket
 
     @property

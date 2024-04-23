@@ -1,4 +1,4 @@
-from shared.extras.custom_io import StdoutCapturingProcess, temp_filepath
+from shared.extras.custom_io import StdoutCapturingProcess, temp_filepath, FileLock
 
 from typing import Iterable, Any
 import pickle
@@ -40,20 +40,20 @@ class CommandResult:
         process_handle: StdoutCapturingProcess | None = None,
     ) -> None:
         self.__status_file = temp_filepath(".pkl")
-        self.__lock_file = temp_filepath(".lock")
+        self.__lock = FileLock()
+
         if status != None:
             self.set_status(status)
         self.__ret_value = ret_value
         self.__process_handle = process_handle
 
     def set_status(self, new_status: AnyCommandResult) -> None:
-        self.__wait_for_lock_file_release()
-        self.__lock_lock_file()
+        self.__lock.acquire()
 
         with open(self.__status_file, "wb") as status_fd:
             pickle.dump(new_status, status_fd)
 
-        self.__release_lock_file()
+        self.__lock.release()
 
     def set_ret_value(self, new_ret_value: Any) -> None:
         self.__ret_value = new_ret_value
@@ -68,13 +68,12 @@ class CommandResult:
         if not os.path.isfile(self.__status_file):
             return
 
-        self.__wait_for_lock_file_release()
-        self.__lock_lock_file()
+        self.__lock.acquire()
 
         with open(self.__status_file, "rb") as status_fd:
             status = pickle.load(status_fd)
 
-        self.__release_lock_file()
+        self.__lock.release()
         return status
 
     @property
@@ -84,31 +83,6 @@ class CommandResult:
     @property
     def process_handle(self) -> StdoutCapturingProcess | None:
         return self.__process_handle
-
-    def __wait_for_lock_file_release(self, update_interval: float = 0.05) -> float:
-        start_time = time.time()
-        if not os.path.isfile(self.__lock_file):
-            self.__release_lock_file()
-            return time.time() - start_time
-
-        with open(self.__lock_file, "rb") as lock_fd:
-            while True:
-                if lock_fd.read(1):
-                    break
-                lock_fd.seek(0)
-                time.sleep(update_interval)
-
-        return time.time() - start_time
-
-    def __release_lock_file(self) -> None:
-        self.__set_lock_file_value(b"\x00")
-
-    def __lock_lock_file(self) -> None:
-        self.__set_lock_file_value(b"\xFF")
-
-    def __set_lock_file_value(self, value: bytes) -> None:
-        with open(self.__lock_file, "wb") as lock_fd:
-            lock_fd.write(value)
 
 
 def get_min_args(arg_types: Iterable["ArgumentType"]) -> int:

@@ -8,6 +8,7 @@ from shared.extras.double_command import (
     OSType,
 )
 from shared.extras.command import ExecuteCommandResult, CommandResult
+from shared.extras.encrypted_socket import EncryptedSocket
 from server_extras.command_parser import CommandToken
 from shared.extras.custom_io import CustomStdout
 
@@ -15,14 +16,13 @@ import concurrent.futures as futures
 from typing import Callable, Any
 import inspect
 import random
-import socket
 import enum
 
 
 class Client:
     def __init__(
         self,
-        client_socket: socket.socket,
+        client_socket: EncryptedSocket,
         client_ip: str,
         client_port: int,
         os_type: OSType,
@@ -94,7 +94,7 @@ class Client:
 
     def create_temp_socket(
         self, blocking: bool | None = None, timeout: float | None = None
-    ) -> socket.socket:
+    ) -> EncryptedSocket:
         tmp_sock = self.__sock.dup()
 
         if blocking == None:
@@ -161,7 +161,7 @@ class Client:
         return not self.__alive
 
     @property
-    def socket(self) -> socket.socket:
+    def socket(self) -> EncryptedSocket:
         return self.__sock
 
     @property

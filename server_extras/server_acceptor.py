@@ -3,19 +3,19 @@ from shared.extras.double_command import (
     recieve_integer,
     recieve_string,
 )
+from shared.extras.encrypted_socket import EncryptedSocket
 from server_extras.client import ClientBucket, Client
 from shared.extras.custom_io import CustomStdout
 from shared.extras.double_command import OSType
 
 import threading
-import socket
 import time
 
 
 class ServerAcceptorThread(threading.Thread):
     def __init__(
         self,
-        server_socket: socket.socket,
+        server_socket: EncryptedSocket,
         clients: ClientBucket,
         custom_stdout: CustomStdout,
     ) -> None:
@@ -32,6 +32,13 @@ class ServerAcceptorThread(threading.Thread):
             except OSError:
                 time.sleep(0.1)
                 continue
+            try:
+                client_socket.initialize_encryption()
+            except OSError:
+                print(
+                    f"Recieved connection from {client_ip}:{client_port} but failed to initialize encryption"
+                )
+                continue
             client_reconnect_name = None
             try:
                 if recieve_boolean(client_socket):
@@ -39,12 +46,12 @@ class ServerAcceptorThread(threading.Thread):
                 client_os = OSType(recieve_integer(client_socket))
             except OSError:
                 self.__custom_stdout.push_line_print(
-                    f"Client from '{client_ip}:{client_port}' tried to connect but didn't send the necesarry information."
+                    f"Client from '{client_ip}:{client_port}' tried to connect but didn't send the necesarry information"
                 )
                 continue
             except ValueError:
                 self.__custom_stdout.push_line_print(
-                    f"Client from '{client_ip}:{client_port}' tried to connect but it sent an invalid os type."
+                    f"Client from '{client_ip}:{client_port}' tried to connect but it sent an invalid os type"
                 )
                 continue
             client_socket.setblocking(True)
