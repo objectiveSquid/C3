@@ -14,10 +14,17 @@ def main() -> None:
     arg_parser.add_argument(
         "-r", "--reconnect", help="Reconnect with specific username", type=str
     )
-    arg_parser.add_argument(
+    install_reqs_group = arg_parser.add_mutually_exclusive_group()
+    install_reqs_group.add_argument(
         "-i",
         "--install_requirements",
         help="Install (double command) client requirements",
+        action="store_true",
+    )
+    install_reqs_group.add_argument(
+        "-si",
+        "--smart_install_requirements",
+        help="Install (double command) client requirements, and skip those from non compatible commands",
         action="store_true",
     )
     arg_parser.add_argument("remote_address")
@@ -26,6 +33,8 @@ def main() -> None:
 
     if args.install_requirements:
         install_modules(client=True)
+    if args.smart_install_requirements:
+        install_modules(client=True, skip_client_non_compatible=True)
 
     if not validate_arguments(args.remote_address, args.remote_port):
         return
