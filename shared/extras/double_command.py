@@ -99,9 +99,9 @@ class DoubleCommand(abc.ABC):
         When defining this method you should use the `staticmethod` decorator.
 
         This method must take 1 parameter:
-        sock: A `socket` object representing a connection to the server.
+        sock: A `EncryptedSocket` object representing a connection to the server.
 
-        You can safely assume that the given `sock` parameter is a valid `socket` object.
+        You can safely assume that the given `sock` parameter is a valid `EncryptedSocket` object.
         """
         ...
 
