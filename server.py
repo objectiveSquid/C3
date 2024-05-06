@@ -1,7 +1,9 @@
 import shared.extras.platform as platform
+import sys
 
 platform.ensure_python_version()
-platform.extend_path()
+if sys.platform == "win32":
+    platform.extend_path()
 from shared.extras.install_modules import install as install_modules
 from shared.extras.arguments import validate_arguments
 from server_extras.server import ServerThread
