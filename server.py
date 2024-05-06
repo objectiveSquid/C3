@@ -11,7 +11,7 @@ from server_extras.server import ServerThread
 import argparse
 
 
-def main() -> None:
+def main() -> int:
     arg_parser = argparse.ArgumentParser(prog="C3 Server")
     arg_parser.add_argument(
         "-i",
@@ -27,15 +27,17 @@ def main() -> None:
         install_modules(server=True)
 
     if not validate_arguments(args.listen_address, args.listen_port, try_bind=True):
-        return
+        return 1
 
     server_thread = ServerThread(args.listen_address, args.listen_port)
     server_thread.start()
     try:
         server_thread.join()
     except KeyboardInterrupt:
-        return
+        pass
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    exit(main())

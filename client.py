@@ -11,7 +11,7 @@ from client_extras.connection import Connection
 import argparse
 
 
-def main() -> None:
+def main() -> int:
     arg_parser = argparse.ArgumentParser(prog="C3 Client")
     arg_parser.add_argument(
         "-r", "--reconnect", help="Reconnect with specific username", type=str
@@ -39,7 +39,7 @@ def main() -> None:
         install_modules(client=True, skip_client_non_compatible=True)
 
     if not validate_arguments(args.remote_address, args.remote_port):
-        return
+        return 1
 
     conn = Connection(args.remote_address, args.remote_port, args.reconnect)
     print("Connected to server.")
@@ -48,11 +48,13 @@ def main() -> None:
             conn.recieve_command()
         except ConnectionResetError:
             print("Connection closed by server, quitting...")
-            exit()
+            break
         except OSError:
             print("Connection error, quitting...")
-            exit()
+            break
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    exit(main())
