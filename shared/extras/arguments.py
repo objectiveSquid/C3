@@ -2,6 +2,9 @@ import ipaddress
 import socket
 
 
+DEFAULT_PORT = 1111
+
+
 def validate_arguments(address: str, port: int, try_bind: bool = False) -> bool:
     if port > 65535:
         print(f"Specified port ({port}) is too large, maximum is 65535")

@@ -5,7 +5,7 @@ platform.ensure_python_version()
 if sys.platform == "win32":
     platform.extend_path()
 from shared.extras.install_modules import install as install_modules
-from shared.extras.arguments import validate_arguments
+from shared.extras.arguments import validate_arguments, DEFAULT_PORT
 from server_extras.server import ServerThread
 
 import argparse
@@ -20,7 +20,7 @@ def main() -> int:
         action="store_true",
     )
     arg_parser.add_argument("listen_address")
-    arg_parser.add_argument("listen_port", type=int)
+    arg_parser.add_argument("listen_port", type=int, default=DEFAULT_PORT)
     args = arg_parser.parse_args()
 
     if args.install_requirements:
